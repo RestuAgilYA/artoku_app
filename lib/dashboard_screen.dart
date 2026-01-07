@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import 'profile_screen.dart';
 import 'add_transaction_sheet.dart';
@@ -12,7 +10,7 @@ import 'analysis_screen.dart';
 import 'detail_transaction_screen.dart';
 import 'all_transactions_screen.dart';
 import 'my_wallet_screen.dart';
-import 'gemini_service.dart';
+import 'package:artoku_app/services/ai_transaction_helper.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -24,11 +22,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final Color primaryColor = const Color(0xFF0F4C5C);
   bool _isExpenseVisible = true;
-
-  // ALAT INPUT
-  final ImagePicker _picker = ImagePicker();
-  final stt.SpeechToText _speech = stt.SpeechToText();
-  bool _isAnalyzing = false;
 
   // STREAM (Disimpan di state agar tidak refresh/kedip saat setState lain berjalan)
   late Stream<QuerySnapshot> _transactionStream;
@@ -73,112 +66,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         'isLocked': false,
       });
     }
-  }
-
-  // --- FITUR KAMERA ---
-  Future<void> _handleCameraScan() async {
-    try {
-      final XFile? photo = await _picker.pickImage(
-        source: ImageSource.camera,
-        imageQuality: 50,
-      );
-      if (photo == null) return;
-
-      setState(() => _isAnalyzing = true);
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Gemini sedang membaca struk...")),
-        );
-
-      File imageFile = File(photo.path);
-      final result = await GeminiService.scanReceipt(imageFile);
-
-      if (mounted) setState(() => _isAnalyzing = false);
-
-      if (result != null && mounted) {
-        _openAddTransactionWithData(result);
-      } else {
-        if (mounted)
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text("Gagal membaca struk.")));
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isAnalyzing = false);
-    }
-  }
-
-  // --- FITUR MIKROFON ---
-  Future<void> _handleVoiceInput() async {
-    bool available = await _speech.initialize(
-      onError: (val) => debugPrint('Speech Error: $val'),
-      onStatus: (val) => debugPrint('Speech Status: $val'),
-    );
-
-    if (available) {
-      if (!mounted) return;
-      String recordedWords = "";
-
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.mic, size: 50, color: Colors.red),
-              const SizedBox(height: 10),
-              const Text("Silakan bicara..."),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () {
-                  _speech.stop();
-                  Navigator.pop(context, recordedWords);
-                },
-                child: const Text("Selesai"),
-              ),
-            ],
-          ),
-        ),
-      ).then((finalResult) async {
-        if (finalResult != null && finalResult.toString().isNotEmpty) {
-          setState(() => _isAnalyzing = true);
-          try {
-            final result = await GeminiService.analyzeText(
-              finalResult.toString(),
-            );
-            if (mounted) setState(() => _isAnalyzing = false);
-            if (result != null && mounted) _openAddTransactionWithData(result);
-          } catch (e) {
-            if (mounted) setState(() => _isAnalyzing = false);
-          }
-        }
-      });
-
-      _speech.listen(
-        onResult: (val) => recordedWords = val.recognizedWords,
-        listenFor: const Duration(seconds: 30),
-        localeId: "id_ID",
-      );
-    }
-  }
-
-  void _openAddTransactionWithData(Map<String, dynamic> data) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => AddTransactionSheet(
-        transactionData: {
-          'amount': data['amount'] ?? 0,
-          'category': data['category'] ?? 'Lainnya',
-          'note': data['note'] ?? '',
-          'type': data['type'] ?? 'expense',
-          'date': Timestamp.now(),
-          'suggestedWallet': data['wallet'],
-        },
-      ),
-    );
   }
 
   String _formatRupiah(num number) {
@@ -247,13 +134,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
-          if (_isAnalyzing)
-            Container(
-              color: Colors.black54,
-              child: const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              ),
-            ),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -926,7 +806,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
-            onTap: _handleCameraScan,
+            onTap: () => AiTransactionHelper.pickAndScanImage(
+              context,
+              ImageSource.camera,
+            ),
             child: _buildCircularIcon(Icons.camera_alt_outlined),
           ),
           const SizedBox(width: 12),
@@ -956,8 +839,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(width: 12),
+          const SizedBox(width: 12),
           GestureDetector(
-            onTap: _handleVoiceInput,
+            onTap: () => AiTransactionHelper.showVoiceInput(context),
             child: _buildCircularIcon(Icons.mic_none_rounded),
           ),
         ],

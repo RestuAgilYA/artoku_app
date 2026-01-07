@@ -1,86 +1,81 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart'; // Untuk debugPrint
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:artoku_app/services/logger_service.dart';
 
 class GeminiService {
-  // Mengambil API Key dari .env dengan fallback string kosong
   static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+  static const String _modelName =
+      'gemini-2.5-flash'; // Flash lebih cepat dan hemat
 
-  // Model yang stabil dan gratis
-  static const String _modelName = 'gemini-2.5-flash';
-
-  // 1. FUNGSI SCAN GAMBAR (STRUK)
+  // 1. SCAN STRUK
   static Future<Map<String, dynamic>?> scanReceipt(File imageFile) async {
     if (_apiKey.isEmpty) {
-      debugPrint("API Key Gemini Kosong! Cek .env");
+      LoggerService.error("API Key Kosong! Cek .env");
       return null;
     }
 
     try {
+      LoggerService.info("Mengirim gambar struk ke Gemini...");
       final model = GenerativeModel(model: _modelName, apiKey: _apiKey);
       final imageBytes = await imageFile.readAsBytes();
 
       final prompt = TextPart("""
-        Analisa gambar struk ini ke JSON.
-        1. amount: Total bayar (integer).
-        2. category: "Makanan", "Transport", "Belanja", "Tagihan", "Hiburan", "Kesehatan", "Lainnya".
-        3. note: Nama toko/item.
-        4. date: YYYY-MM-DD.
-        5. wallet: Metode pembayaran. Cari kata kunci "Cash", "Tunai", "BCA", "Mandiri", "Gopay", "OVO", "Debit", "Credit". 
-           Jika tidak ditemukan di struk, isi null.
-           Contoh: "Tunai" -> "Cash". "Bank BCA" -> "BCA".
+        Analisa gambar struk ini ke format JSON murni.
+        Ambil informasi berikut:
+        1. amount: Total pembayaran (integer, tanpa titik/koma).
+        2. category: Kategori yang paling cocok ("Makanan", "Transport", "Belanja", "Tagihan", "Hiburan", "Kesehatan", "Lainnya").
+        3. note: Nama toko atau item utama secara singkat.
+        4. date: Tanggal transaksi (format: YYYY-MM-DD).
+        5. wallet: Metode pembayaran yang tertera (contoh: "Cash", "BCA", "Gopay", "OVO", "Mandiri", "Credit Card"). Jika tidak ada info, isi null.
 
-        Output JSON murni:
-        {"amount": 0, "category": "Lainnya", "note": "", "date": null, "wallet": null}
+        Contoh Output JSON:
+        {"amount": 50000, "category": "Makanan", "note": "Warung Padang", "date": "2023-10-25", "wallet": "Cash"}
       """);
 
-      final imagePart = DataPart('image/jpeg', imageBytes);
       final response = await model.generateContent([
-        Content.multi([prompt, imagePart]),
+        Content.multi([prompt, DataPart('image/jpeg', imageBytes)]),
       ]);
 
-      debugPrint("Gemini Receipt Response: ${response.text}");
+      LoggerService.info("Gemini Receipt Raw Response: ${response.text}");
       return _cleanAndParseJson(response.text);
-    } catch (e) {
-      debugPrint("Gemini Error (Image): $e");
+    } catch (e, stack) {
+      LoggerService.error("Gemini Scan Error", e, stack);
       return null;
     }
   }
 
-  // 2. FUNGSI ANALISA SUARA (TEKS)
+  // 2. ANALISA SUARA/TEKS
   static Future<Map<String, dynamic>?> analyzeText(String text) async {
     if (_apiKey.isEmpty) {
-      debugPrint("Error: API Key Gemini kosong.");
+      LoggerService.error("API Key Kosong.");
       return null;
     }
 
     try {
+      LoggerService.info("Mengirim teks ke Gemini: $text");
       final model = GenerativeModel(model: _modelName, apiKey: _apiKey);
 
       final prompt =
           """
-        Analisa kalimat transaksi ini: "$text".
-        Ekstrak ke JSON murni:
+        Anda adalah asisten keuangan pribadi. Analisa kalimat user berikut: "$text".
+        Ekstrak informasi ke dalam JSON murni:
         {
-          "amount": (integer, contoh: 50000. Konversi "50rb" jadi 50000),
+          "amount": (integer, konversi kata seperti "50rb" menjadi 50000),
           "type": ("expense" atau "income"),
-          "category": (Pilih: "Makanan", "Transport", "Belanja", "Tagihan", "Gaji", "Bonus", "Lainnya"),
-          "note": (Ringkasan singkat),
-          "wallet": (Metode bayar jika disebut. Contoh: "pakai cash", "lewat bca", "dari gopay". Jika tidak disebut, isi null)
+          "category": (Pilih kategori umum: "Makanan", "Transport", "Belanja", "Tagihan", "Gaji", "Bonus", "Lainnya"),
+          "note": (Ringkasan singkat transaksi),
+          "wallet": (Metode bayar/sumber dana jika disebut. Contoh: "pakai cash" -> "Cash", "dari gopay" -> "Gopay". Jika tidak disebut, isi null)
         }
-        
-        Contoh User: "Beli bakso 15 ribu pakai cash"
-        Output: {"amount": 15000, "type": "expense", "category": "Makanan", "note": "Bakso", "wallet": "Cash"}
       """;
 
       final response = await model.generateContent([Content.text(prompt)]);
 
-      debugPrint("Gemini Text Response: ${response.text}");
+      LoggerService.info("Gemini Text Raw Response: ${response.text}");
       return _cleanAndParseJson(response.text);
-    } catch (e) {
-      debugPrint("Gemini Error (Text): $e");
+    } catch (e, stack) {
+      LoggerService.error("Gemini Text Analysis Error", e, stack);
       return null;
     }
   }
@@ -88,13 +83,17 @@ class GeminiService {
   static Map<String, dynamic>? _cleanAndParseJson(String? text) {
     if (text == null) return null;
     try {
-      int startIndex = text.indexOf('{');
-      int endIndex = text.lastIndexOf('}');
+      // Membersihkan markdown ```json ... ```
+      String cleanText = text.replaceAll(RegExp(r'```json|```'), '').trim();
+
+      int startIndex = cleanText.indexOf('{');
+      int endIndex = cleanText.lastIndexOf('}');
       if (startIndex == -1 || endIndex == -1) return null;
-      String cleanJson = text.substring(startIndex, endIndex + 1);
-      return jsonDecode(cleanJson);
+
+      String jsonString = cleanText.substring(startIndex, endIndex + 1);
+      return jsonDecode(jsonString);
     } catch (e) {
-      debugPrint("Error Parsing JSON Gemini: $e");
+      LoggerService.warning("Gagal parsing JSON: $text");
       return null;
     }
   }

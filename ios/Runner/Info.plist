@@ -48,6 +48,12 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
     <string>Aplikasi membutuhkan akses ini untuk mengubah suara menjadi teks transaksi.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Aplikasi membutuhkan mikrofon untuk merekam suara transaksi Anda.</string>
+<string>Aplikasi butuh akses mikrofon untuk input suara transaksi.</string>
+<key>NSSpeechRecognitionUsageDescription</key>
+<string>Aplikasi butuh akses pengenalan suara untuk mengubah suara menjadi teks.</string>
+<key>NSCameraUsageDescription</key>
+<string>Aplikasi butuh akses kamera untuk scan struk.</string>
+<key>NSPhotoLibraryUsageDescription</key>
+<string>Aplikasi butuh akses galeri untuk scan struk.</string>
 </dict>
 </plist>

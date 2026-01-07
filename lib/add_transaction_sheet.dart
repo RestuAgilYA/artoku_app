@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:artoku_app/services/logger_service.dart';
 
 class AddTransactionSheet extends StatefulWidget {
+  // Tambahkan parameter ini untuk menerima hasil analisa Gemini
   final Map<String, dynamic>? transactionData;
   final String? transactionId;
 
@@ -26,13 +27,14 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   final Color incomeColor = const Color(0xFF00897B);
 
   bool _isExpense = true;
-  bool _isFormValid = false; // State untuk cek form lengkap/belum
+  bool _isFormValid = false;
 
   String _selectedCategory = "Makanan";
   String? _selectedWalletId;
   String? _selectedWalletName;
   double? _selectedWalletBalance;
 
+  // Variabel untuk menampung saran dompet dari AI
   String? _aiSuggestedWallet;
 
   late TextEditingController _amountController;
@@ -63,28 +65,50 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     _amountController = TextEditingController();
     _noteController = TextEditingController();
 
-    // Listener untuk validasi realtime (Tombol Simpan)
     _amountController.addListener(_validateForm);
     _noteController.addListener(_validateForm);
 
     _loadCustomCategories();
 
+    // --- LOGIC AUTO-FILL DARI GEMINI ---
     if (widget.transactionData != null) {
       final data = widget.transactionData!;
-      _isExpense = (data['type'] == 'expense');
-      currentColor = _isExpense ? expenseColor : incomeColor;
 
-      _selectedCategory = data['category'] ?? (_isExpense ? "Makanan" : "Gaji");
+      // 1. Tipe Transaksi
+      if (data['type'] != null) {
+        _isExpense = (data['type'] == 'expense');
+        currentColor = _isExpense ? expenseColor : incomeColor;
+      }
+
+      // 2. Kategori (Akan divalidasi nanti di _loadCustomCategories)
+      if (data['category'] != null) {
+        _selectedCategory = data['category'];
+      }
+
+      // 3. Catatan
       _noteController.text = data['note'] ?? "";
-      _selectedWalletId = data['walletId'];
+
+      // 4. Dompet (Simpan nama saran dari AI, nanti dicocokkan di StreamBuilder)
+      _selectedWalletId = data['walletId']; // Kalau edit manual
       _selectedWalletName = data['walletName'];
-      _aiSuggestedWallet = data['suggestedWallet'];
+      _aiSuggestedWallet = data['wallet']; // Dari Gemini berupa string nama
 
-      double oldAmount = (data['amount'] ?? 0).toDouble();
-      _amountController.text = oldAmount.toInt().toString();
+      // 5. Nominal
+      double amount = (data['amount'] ?? 0).toDouble();
+      if (amount > 0) {
+        _amountController.text = amount.toInt().toString();
+      }
 
+      // 6. Tanggal
       if (data['date'] != null) {
-        _selectedDate = (data['date'] as Timestamp).toDate();
+        if (data['date'] is Timestamp) {
+          _selectedDate = (data['date'] as Timestamp).toDate();
+        } else if (data['date'] is String) {
+          // Jika format string YYYY-MM-DD dari gemini
+          try {
+            _selectedDate = DateTime.parse(data['date']);
+          } catch (_) {}
+        }
       }
     }
   }
@@ -96,9 +120,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     super.dispose();
   }
 
-  // --- LOGIC VALIDASI FORM ---
   void _validateForm() {
-    // Cek apakah nominal ada & catatan tidak kosong & dompet terpilih
     double amount =
         double.tryParse(_amountController.text.replaceAll('.', '')) ?? 0;
     bool isValid =
@@ -132,25 +154,36 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             if (data['income_categories'] != null) {
               _incomeCategories = List<String>.from(data['income_categories']);
             }
-            // Pastikan kategori terpilih ada di list, kalau tidak reset ke index 0
+
+            // Validasi: Pastikan kategori dari AI ada di list user
             List<String> currentList = _isExpense
                 ? _expenseCategories
                 : _incomeCategories;
-            if (!currentList.contains(_selectedCategory) &&
-                currentList.isNotEmpty) {
-              _selectedCategory = currentList[0];
+
+            // Cari yang mirip (Case Insensitive)
+            String? match = currentList.firstWhere(
+              (c) => c.toLowerCase() == _selectedCategory.toLowerCase(),
+              orElse: () => "",
+            );
+
+            if (match.isNotEmpty) {
+              _selectedCategory = match;
+            } else if (currentList.isNotEmpty) {
+              // Jika tidak ketemu, default ke yang pertama atau "Lainnya"
+              _selectedCategory = currentList.contains("Lainnya")
+                  ? "Lainnya"
+                  : currentList[0];
             }
           });
         }
       }
     } catch (e) {
-      print("Gagal load kategori: $e");
+      LoggerService.error("Gagal load kategori", e);
     }
   }
 
-  // --- LOGIC HAPUS KATEGORI ---
   void _deleteCategory(String category) async {
-    // Jangan hapus jika ini satu-satunya kategori
+    // ... (Kode delete category sama seperti sebelumnya, tidak diubah) ...
     List<String> currentList = _isExpense
         ? _expenseCategories
         : _incomeCategories;
@@ -158,8 +191,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       _showAlert("Gagal", "Minimal harus ada satu kategori.");
       return;
     }
-
-    // Dialog Konfirmasi
     bool confirm =
         await showDialog(
           context: context,
@@ -184,25 +215,21 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
     if (confirm && user != null) {
       setState(() {
-        if (_isExpense) {
+        if (_isExpense)
           _expenseCategories.remove(category);
-        } else {
+        else
           _incomeCategories.remove(category);
-        }
-        // Jika kategori yang dihapus sedang dipilih, pindah ke yang lain
+
         if (_selectedCategory == category) {
           _selectedCategory = _isExpense
               ? _expenseCategories[0]
               : _incomeCategories[0];
         }
       });
-
-      // Update Firebase
       String field = _isExpense ? 'expense_categories' : 'income_categories';
       List<String> listToSave = _isExpense
           ? _expenseCategories
           : _incomeCategories;
-
       await FirebaseFirestore.instance.collection('users').doc(user!.uid).set({
         field: listToSave,
       }, SetOptions(merge: true));
@@ -210,6 +237,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   void _showAddCategoryDialog() {
+    // ... (Kode add category sama seperti sebelumnya) ...
     TextEditingController catController = TextEditingController();
     showDialog(
       context: context,
@@ -236,11 +264,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               String newCat = catController.text.trim();
               if (newCat.isNotEmpty && user != null) {
                 setState(() {
-                  if (_isExpense) {
+                  if (_isExpense)
                     _expenseCategories.add(newCat);
-                  } else {
+                  else
                     _incomeCategories.add(newCat);
-                  }
                   _selectedCategory = newCat;
                 });
                 String field = _isExpense
@@ -263,12 +290,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     );
   }
 
-  // Helper format rupiah sederhana
   String _formatSimpleRupiah(double value) {
     return "Rp ${value.toInt().toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
   }
 
-  // Helper Alert Window
   Future<void> _showAlert(
     String title,
     String message, {
@@ -315,28 +340,22 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Future<void> _saveTransaction() async {
-    // 1. Validasi Manual (Double Check)
+    // ... (Logika save sama persis, tidak ada yang diubah logikanya) ...
     if (_amountController.text.isEmpty ||
         _noteController.text.trim().isEmpty ||
         _selectedWalletId == null ||
         user == null) {
-      if (_noteController.text.trim().isEmpty) {
-        // Ganti dialog bawaan dengan UIHelper (Error/Warning)
-        UIHelper.showError(
-          context,
-          "Catatan Kosong. Mohon isi catatan agar mudah diingat.",
-        );
-      }
+      if (_noteController.text.trim().isEmpty)
+        UIHelper.showError(context, "Catatan Kosong. Mohon isi catatan.");
       return;
     }
-
     double amount =
         double.tryParse(_amountController.text.replaceAll('.', '')) ?? 0;
     if (amount <= 0) return;
 
-    // 2. VALIDASI SALDO (Tetap pertahankan logika ini karena spesifik)
     if (_isExpense && widget.transactionId == null) {
       if (_selectedWalletBalance != null && amount > _selectedWalletBalance!) {
+        // Tampilkan warning saldo tidak cukup (copy logika lama)
         await showDialog(
           context: context,
           builder: (ctx) {
@@ -403,19 +422,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
     final batch = firestore.batch();
 
     try {
-      // Tampilkan Loading (Opsional, tapi bagus untuk UX)
-      // UIHelper.showLoading(context);
-
       DocumentReference transactionRef;
       if (widget.transactionId != null) {
-        // --- LOGIC UPDATE ---
         transactionRef = firestore
             .collection('users')
             .doc(user!.uid)
             .collection('transactions')
             .doc(widget.transactionId);
-
-        // Revert Saldo Lama
         double oldAmount = (widget.transactionData!['amount'] ?? 0).toDouble();
         String? oldWalletId = widget.transactionData!['walletId'];
         String oldType = widget.transactionData!['type'] ?? 'expense';
@@ -434,7 +447,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
           });
         }
       } else {
-        // --- LOGIC BARU ---
         transactionRef = firestore
             .collection('users')
             .doc(user!.uid)
@@ -455,13 +467,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      if (widget.transactionId != null) {
+      if (widget.transactionId != null)
         batch.update(transactionRef, dataToSave);
-      } else {
+      else
         batch.set(transactionRef, dataToSave);
-      }
 
-      // Update Saldo Wallet Baru
       final newWalletRef = firestore
           .collection('users')
           .doc(user!.uid)
@@ -475,8 +485,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       await batch.commit();
 
       if (mounted) {
-        Navigator.pop(context); // Tutup BottomSheet dulu
-        // --- IMPLEMENTASI UI HELPER ---
+        Navigator.pop(context);
         UIHelper.showSuccess(
           context,
           "Berhasil!",
@@ -484,13 +493,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         );
       }
     } catch (e, stack) {
-      // Logger Service mencatat error di background
       LoggerService.error("Gagal simpan transaksi", e, stack);
-
-      if (mounted) {
-        // Tampilkan pesan error user-friendly
+      if (mounted)
         UIHelper.showError(context, "Gagal menyimpan data database.");
-      }
     }
   }
 
@@ -568,10 +573,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (!snapshot.hasData) return const SizedBox(height: 50);
-
                 List<QueryDocumentSnapshot> allWallets = snapshot.data!.docs;
-
-                // --- FIX 1: Filter Dompet Terkunci (Hidden) ---
                 List<QueryDocumentSnapshot> activeWallets = allWallets.where((
                   doc,
                 ) {
@@ -579,18 +581,18 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   return data['isLocked'] != true;
                 }).toList();
 
-                if (activeWallets.isEmpty) {
+                if (activeWallets.isEmpty)
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
-                    child: Text("Tidak ada dompet aktif (cek 'Dompet Saya')."),
+                    child: Text("Tidak ada dompet aktif."),
                   );
-                }
 
-                // --- FIX 2: Auto-Select 'Tunai' atau 'Cash' jika belum dipilih ---
+                // --- SMART WALLET SELECTION ---
+                // Logic ini dijalankan jika user belum memilih dompet secara manual
                 if (_selectedWalletId == null && widget.transactionId == null) {
                   QueryDocumentSnapshot? targetWallet;
 
-                  // Prioritas 1: Suggestion dari AI (Camera/Voice)
+                  // 1. Coba cari berdasarkan saran AI (jika ada)
                   if (_aiSuggestedWallet != null) {
                     try {
                       targetWallet = activeWallets.firstWhere((doc) {
@@ -602,7 +604,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     } catch (_) {}
                   }
 
-                  // Prioritas 2: Cari 'Tunai' atau 'Cash'
+                  // 2. Jika tidak ada, cari default "Tunai" / "Cash"
                   if (targetWallet == null) {
                     try {
                       targetWallet = activeWallets.firstWhere((doc) {
@@ -611,15 +613,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                             .toLowerCase();
                         return name.contains('tunai') || name.contains('cash');
                       });
-                    } catch (_) {
-                      // Tidak ketemu 'Tunai'
-                    }
+                    } catch (_) {}
                   }
 
-                  // Prioritas 3: Ambil dompet pertama di list
+                  // 3. Fallback ke dompet pertama
                   targetWallet ??= activeWallets.first;
 
-                  // Set State setelah frame render selesai
+                  // Update state setelah build selesai
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
                       setState(() {
@@ -642,14 +642,13 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                       var data = doc.data() as Map<String, dynamic>;
                       bool isSelected = _selectedWalletId == doc.id;
                       Color wColor = Color(data['color']);
-
                       return GestureDetector(
                         onTap: () => setState(() {
                           _selectedWalletId = doc.id;
                           _selectedWalletName = data['name'];
                           _selectedWalletBalance = (data['balance'] ?? 0)
                               .toDouble();
-                          _validateForm(); // Cek validasi saat ganti dompet
+                          _validateForm();
                         }),
                         child: Container(
                           margin: const EdgeInsets.only(right: 10),
@@ -718,8 +717,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ),
             ),
             const SizedBox(height: 15),
-
-            // --- KATEGORI + DELETE FEATURE ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -745,7 +742,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 ...currentCategories.map((category) {
                   final isSelected = _selectedCategory == category;
                   return GestureDetector(
-                    // FITUR DELETE KATEGORI
                     onLongPress: () => _deleteCategory(category),
                     child: ChoiceChip(
                       label: Text(category),
@@ -859,8 +855,6 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               ],
             ),
             const SizedBox(height: 30),
-
-            // --- TOMBOL SIMPAN (DISABLE LOGIC) ---
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -868,13 +862,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _isFormValid
                       ? currentColor
-                      : Colors.grey.shade400, // Abu-abu jika disable
+                      : Colors.grey.shade400,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
                   ),
                   elevation: _isFormValid ? 2 : 0,
                 ),
-                // Jika form tidak valid, onPressed null (tombol mati)
                 onPressed: _isFormValid ? _saveTransaction : null,
                 child: Text(
                   widget.transactionId == null ? "Simpan" : "Update",
