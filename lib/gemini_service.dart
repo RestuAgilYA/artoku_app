@@ -1,23 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Pastikan package ini ada di pubspec.yaml
+import 'package:flutter/material.dart'; // Untuk debugPrint
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:artoku_app/services/logger_service.dart'; // Pastikan file logger_service.dart sudah dibuat
 
 class GeminiService {
-  // Mengambil API Key dari .env dengan fallback string kosong agar tidak error null
+  // Mengambil API Key dari .env dengan fallback string kosong
   static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
 
   // Model yang stabil dan gratis
-  static const String _modelName = 'gemini-2.0-flash';
+  static const String _modelName = 'gemini-2.5-flash';
 
   // 1. FUNGSI SCAN GAMBAR (STRUK)
   static Future<Map<String, dynamic>?> scanReceipt(File imageFile) async {
-    // Cek apakah API Key sudah terbaca
     if (_apiKey.isEmpty) {
-      LoggerService.error(
-        "API Key Gemini belum diset di .env atau gagal dimuat.",
-      );
+      debugPrint("Error: API Key Gemini belum diset di .env");
       return null;
     }
 
@@ -44,10 +41,10 @@ class GeminiService {
         Content.multi([prompt, imagePart]),
       ]);
 
-      LoggerService.info("Gemini Receipt Response: ${response.text}");
+      debugPrint("Gemini Receipt Response: ${response.text}");
       return _cleanAndParseJson(response.text);
-    } catch (e, stack) {
-      LoggerService.error("Gemini Error (Image)", e, stack);
+    } catch (e) {
+      debugPrint("Gemini Error (Image): $e");
       return null;
     }
   }
@@ -55,7 +52,7 @@ class GeminiService {
   // 2. FUNGSI ANALISA SUARA (TEKS)
   static Future<Map<String, dynamic>?> analyzeText(String text) async {
     if (_apiKey.isEmpty) {
-      LoggerService.error("API Key Gemini kosong.");
+      debugPrint("Error: API Key Gemini kosong.");
       return null;
     }
 
@@ -80,10 +77,10 @@ class GeminiService {
 
       final response = await model.generateContent([Content.text(prompt)]);
 
-      LoggerService.info("Gemini Text Response: ${response.text}");
+      debugPrint("Gemini Text Response: ${response.text}");
       return _cleanAndParseJson(response.text);
-    } catch (e, stack) {
-      LoggerService.error("Gemini Error (Text)", e, stack);
+    } catch (e) {
+      debugPrint("Gemini Error (Text): $e");
       return null;
     }
   }
@@ -97,7 +94,7 @@ class GeminiService {
       String cleanJson = text.substring(startIndex, endIndex + 1);
       return jsonDecode(cleanJson);
     } catch (e) {
-      LoggerService.error("Error Parsing JSON Gemini: $e");
+      debugPrint("Error Parsing JSON Gemini: $e");
       return null;
     }
   }

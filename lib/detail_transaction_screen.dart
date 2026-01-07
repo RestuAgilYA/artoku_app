@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:artoku_app/services/ui_helper.dart';
 
 class DetailTransactionScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -234,14 +235,13 @@ class DetailTransactionScreen extends StatelessWidget {
 
               if (context.mounted) {
                 Navigator.pop(context); // Tutup Dialog
-                Navigator.pop(
+                Navigator.pop(context); // Balik Dashboard
+
+                // GANTI SNACKBAR LAMA DENGAN UIHELPER
+                UIHelper.showSuccess(
                   context,
-                ); // Tutup Detail Screen (Balik ke Dashboard)
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Transaksi berhasil dihapus"),
-                    backgroundColor: Colors.red,
-                  ),
+                  "Terhapus",
+                  "Transaksi berhasil dihapus dan saldo dikembalikan.",
                 );
               }
             },

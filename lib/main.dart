@@ -2,26 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // 1. IMPORT INI
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Import ini
 import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
 import 'notification_service.dart';
 
+// ValueNotifier agar perubahan tema bisa didengar oleh UI
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 2. LOAD .ENV (WAJIB DI SINI)
-  // Pastikan file .env ada di root folder project
+  // 1. Load .env
   try {
     await dotenv.load(fileName: ".env");
   } catch (e) {
-    debugPrint("Warning: File .env tidak ditemukan/gagal dimuat: $e");
+    debugPrint("Warning: File .env error: $e");
   }
 
   await Firebase.initializeApp();
   await NotificationService().init();
+
+  // 2. Load Tema Tersimpan dari SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+  final bool isDark = prefs.getBool('isDarkMode') ?? false;
+  themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
 
   runApp(const MyApp());
 }
@@ -38,7 +44,7 @@ class MyApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           title: 'ArtoKu App',
 
-          // --- Setting TEMA TERANG ---
+          // TEMA TERANG
           theme: ThemeData(
             textTheme: GoogleFonts.poppinsTextTheme(),
             primaryColor: const Color(0xFF0F4C5C),
@@ -51,7 +57,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
 
-          // --- Setting TEMA GELAP ---
+          // TEMA GELAP
           darkTheme: ThemeData(
             textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
             primaryColor: const Color(0xFF0F4C5C),

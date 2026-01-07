@@ -13,6 +13,7 @@ import 'detail_transaction_screen.dart';
 import 'all_transactions_screen.dart';
 import 'my_wallet_screen.dart';
 import 'gemini_service.dart';
+import 'package:artoku_app/services/ui_helper.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,28 +26,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final Color primaryColor = const Color(0xFF0F4C5C);
   bool _isExpenseVisible = true;
 
-  // Hapus inisialisasi user di sini agar selalu ambil state terbaru
-  // final User? user = FirebaseAuth.instance.currentUser;
-
-  // ALAT INPUT
   final ImagePicker _picker = ImagePicker();
   final stt.SpeechToText _speech = stt.SpeechToText();
-  bool _isAnalyzing = false;
+
+  // HAPUS: bool _isAnalyzing = false; (Sudah tidak perlu)
+
+  final User? user = FirebaseAuth.instance.currentUser;
+  late Stream<QuerySnapshot> _transactionStream;
 
   @override
   void initState() {
     super.initState();
     _checkAndCreateDefaultWallets();
-    // Stream tidak lagi diinisialisasi di sini untuk mencegah data kosong
+
+    if (user != null) {
+      _transactionStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transactions')
+          .orderBy('date', descending: true)
+          .limit(5)
+          .snapshots();
+    }
   }
 
   Future<void> _checkAndCreateDefaultWallets() async {
-    final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
     final walletRef = FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(user!.uid)
         .collection('wallets');
 
     final snapshot = await walletRef.limit(1).get();
@@ -60,7 +68,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // --- 1. FITUR KAMERA (SCAN STRUK) ---
   Future<void> _handleCameraScan() async {
     try {
       final XFile? photo = await _picker.pickImage(
@@ -69,128 +76,74 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
       if (photo == null) return;
 
-      setState(() => _isAnalyzing = true);
-
+      // Tampilkan Loading Dialog
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Gemini sedang membaca struk...")),
-        );
+        UIHelper.showLoading(context);
       }
 
       File imageFile = File(photo.path);
       final result = await GeminiService.scanReceipt(imageFile);
 
-      if (mounted) setState(() => _isAnalyzing = false);
+      // Tutup Loading Dialog
+      if (mounted) {
+        Navigator.pop(context);
+      }
 
       if (result != null && mounted) {
         _openAddTransactionWithData(result);
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Gagal membaca struk. Pastikan gambar jelas."),
-            ),
-          );
+          UIHelper.showError(context, "Gagal membaca struk.");
         }
       }
     } catch (e) {
-      if (mounted) setState(() => _isAnalyzing = false);
-      print(e);
+      // Pastikan loading tertutup jika error
+      if (mounted) {
+        Navigator.pop(context);
+      }
     }
   }
 
-  // --- 2. FITUR MIKROFON (VOICE INPUT) ---
   Future<void> _handleVoiceInput() async {
     bool available = await _speech.initialize(
-      onError: (val) => print('Speech Error: $val'),
-      onStatus: (val) => print('Speech Status: $val'),
+      onError: (val) => debugPrint('Error: $val'),
+      onStatus: (val) => debugPrint('Status: $val'),
     );
 
     if (available) {
       if (!mounted) return;
 
-      String recordedWords = "";
-
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.mic, size: 50, color: Colors.red),
-                  const SizedBox(height: 10),
-                  const Text("Silakan bicara..."),
-                  const SizedBox(height: 10),
-                  Text(
-                    recordedWords.isEmpty ? "..." : recordedWords,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: () {
-                      _speech.stop();
-                      Navigator.pop(context, recordedWords);
-                    },
-                    child: const Text("Selesai"),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ).then((finalResult) async {
-        if (finalResult != null && finalResult.toString().isNotEmpty) {
-          String textToAnalyze = finalResult.toString();
-          setState(() => _isAnalyzing = true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Menganalisa: '$textToAnalyze'...")),
-          );
+        builder: (context) => const VoiceListeningDialog(),
+      ).then((result) async {
+        if (result != null && result.toString().isNotEmpty) {
+          String text = result.toString();
+
+          // Tampilkan Loading
+          if (mounted) UIHelper.showLoading(context);
 
           try {
-            final result = await GeminiService.analyzeText(textToAnalyze);
+            final data = await GeminiService.analyzeText(text);
 
-            if (mounted) setState(() => _isAnalyzing = false);
+            // Tutup Loading
+            if (mounted) Navigator.pop(context);
 
-            if (result != null && mounted) {
-              _openAddTransactionWithData(result);
+            if (data != null && mounted) {
+              _openAddTransactionWithData(data);
             } else {
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Gemini bingung, coba kalimat lain."),
-                  ),
-                );
+                UIHelper.showError(context, "Gagal menganalisa suara.");
               }
             }
           } catch (e) {
-            if (mounted) setState(() => _isAnalyzing = false);
+            if (mounted) Navigator.pop(context);
           }
         }
       });
-
-      _speech.listen(
-        onResult: (val) {
-          recordedWords = val.recognizedWords;
-        },
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 5),
-        partialResults: true,
-        localeId: "id_ID",
-        cancelOnError: true,
-        listenMode: stt.ListenMode.confirmation,
-      );
     } else {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Izin mikrofon ditolak atau tidak tersedia."),
-          ),
-        );
-      }
+      UIHelper.showError(context, "Mikrofon tidak tersedia.");
     }
   }
 
@@ -198,7 +151,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Timestamp now = Timestamp.now();
     String type = data['type'] ?? 'expense';
     if (type != 'expense' && type != 'income') type = 'expense';
-    String? detectedWallet = data['wallet'];
 
     Map<String, dynamic> prepData = {
       'amount': data['amount'] ?? 0,
@@ -208,7 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       'date': now,
       'walletId': null,
       'walletName': null,
-      'suggestedWallet': detectedWallet,
+      'suggestedWallet': data['wallet'],
     };
 
     showModalBottomSheet(
@@ -242,9 +194,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return "${date.day} ${months[date.month - 1]} ${date.year}";
   }
 
-  String _getUserDisplayName(User? user) {
+  String _getUserDisplayName() {
     if (user?.displayName != null && user!.displayName!.isNotEmpty) {
-      return user.displayName!;
+      return user!.displayName!;
     }
     if (user?.email != null) {
       String name = user!.email!.split('@')[0];
@@ -258,9 +210,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black;
 
-    // Ambil user langsung di dalam build agar tidak null
-    final User? user = FirebaseAuth.instance.currentUser;
-
     if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -272,41 +221,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SingleChildScrollView(
             child: Column(
               children: [
-                _buildHeader(user),
-                // Menggeser menu ke atas agar overlap dengan header
+                _buildHeader(),
                 Transform.translate(
                   offset: const Offset(0, -30),
                   child: _buildQuickMenu(isDark),
                 ),
                 const SizedBox(height: 10),
-                _buildTransactionList(isDark, textColor, user),
+                _buildTransactionList(isDark, textColor),
                 const SizedBox(height: 100),
               ],
             ),
           ),
-          if (_isAnalyzing)
-            Container(
-              width: double.infinity,
-              height: double.infinity,
-              color: Colors.black.withOpacity(0.5),
-              child: const Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: Colors.white),
-                    SizedBox(height: 20),
-                    Text(
-                      "AI sedang menganalisa...",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
         ],
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -315,19 +240,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Header dengan Corak (Gradient + Bubbles) + STREAM FIX
-  Widget _buildHeader(User user) {
+  Widget _buildHeader() {
     return StreamBuilder<QuerySnapshot>(
-      // FIX: Panggil stream langsung di sini
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(user!.uid)
           .collection('transactions')
           .snapshots(),
       builder: (context, snapshot) {
         double thisMonthExpense = 0;
         double thisMonthIncome = 0;
-        double lastMonthExpense = 0;
         DateTime now = DateTime.now();
 
         if (snapshot.hasData) {
@@ -335,25 +257,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             var data = doc.data() as Map<String, dynamic>;
             Timestamp? t = data['date'];
             if (t == null) continue;
-
             DateTime date = t.toDate();
             double amount = (data['amount'] ?? 0).toDouble();
             String type = data['type'] ?? 'expense';
 
             if (date.year == now.year && date.month == now.month) {
-              if (type == 'expense') {
+              if (type == 'expense')
                 thisMonthExpense += amount;
-              } else if (type == 'income') {
+              else
                 thisMonthIncome += amount;
-              }
-            }
-
-            DateTime lastMonthDate = DateTime(now.year, now.month - 1);
-            if (date.year == lastMonthDate.year &&
-                date.month == lastMonthDate.month) {
-              if (type == 'expense') {
-                lastMonthExpense += amount;
-              }
             }
           }
         }
@@ -374,7 +286,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           child: Stack(
             children: [
-              // --- CORAK DEKORASI ---
               Positioned(
                 top: -50,
                 right: -50,
@@ -399,8 +310,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
               ),
-
-              // --- KONTEN UTAMA ---
               Padding(
                 padding: const EdgeInsets.only(
                   top: 60,
@@ -437,7 +346,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              _getUserDisplayName(user),
+                              _getUserDisplayName(),
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -455,38 +364,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        Row(
-                          children: [
-                            IconButton(
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              icon: Icon(
-                                _isExpenseVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: Colors.white70,
-                                size: 20,
-                              ),
-                              onPressed: () => setState(
-                                () => _isExpenseVisible = !_isExpenseVisible,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _isExpenseVisible
-                                  ? _formatRupiah(thisMonthExpense)
-                                  : "**********",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                        IconButton(
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          icon: Icon(
+                            _isExpenseVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Colors.white70,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(
+                            () => _isExpenseVisible = !_isExpenseVisible,
+                          ),
                         ),
                         const SizedBox(width: 10),
-                        if (_isExpenseVisible)
-                          _buildPillBadge(thisMonthExpense, lastMonthExpense),
+                        Text(
+                          _isExpenseVisible
+                              ? _formatRupiah(thisMonthExpense)
+                              : "**********",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 25),
@@ -531,13 +433,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                       fontSize: 13,
                                     ),
                                   ),
-                                  const Text(
-                                    "Bulan Ini",
-                                    style: TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 9,
-                                    ),
-                                  ),
                                 ],
                               ),
                             ),
@@ -551,8 +446,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   builder: (context) => const MyWalletScreen(),
                                 ),
                               ),
-                              // Kirim user untuk stream di dalam widget ini
-                              child: _buildWalletCardInfo(user),
+                              child: _buildWalletCardInfo(),
                             ),
                           ),
                         ],
@@ -568,47 +462,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildPillBadge(double current, double last) {
-    if (last == 0) return const SizedBox();
-    double diff = current - last;
-    double percentage = (diff / last) * 100;
-    bool isHemat = diff < 0;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isHemat ? Icons.arrow_downward : Icons.arrow_upward,
-            color: isHemat ? const Color(0xFF69F0AE) : const Color(0xFFFF5252),
-            size: 12,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            "${percentage.abs().toStringAsFixed(0)}%",
-            style: TextStyle(
-              color: isHemat
-                  ? const Color(0xFF69F0AE)
-                  : const Color(0xFFFF5252),
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // FIX: Stream Wallet dipanggil langsung
-  Widget _buildWalletCardInfo(User user) {
+  Widget _buildWalletCardInfo() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(user!.uid)
           .collection('wallets')
           .snapshots(),
       builder: (context, snapshot) {
@@ -730,25 +588,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isComingSoon)
-              Container(
-                margin: const EdgeInsets.only(bottom: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.8),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  "Soon",
-                  style: TextStyle(
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              )
-            else
-              const SizedBox(height: 18),
+            const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
@@ -772,25 +612,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // FIX: Stream Transaksi dipanggil langsung
-  Widget _buildTransactionList(bool isDark, Color textColor, User user) {
+  Widget _buildTransactionList(bool isDark, Color textColor) {
     Color dateColor = isDark ? Colors.grey : Colors.grey.shade600;
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .collection('transactions')
-          .orderBy('createdAt', descending: true)
-          .limit(5)
-          .snapshots(),
+      stream: _transactionStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
-            ),
-          );
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: Padding(padding: EdgeInsets.all(20)));
+        }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Padding(
@@ -846,7 +676,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 String note = data['note'] ?? '';
                 String displayTitle = (note.isNotEmpty) ? note : category;
                 String displaySubtitle = category;
-
                 double amount = (data['amount'] ?? 0).toDouble();
                 String formattedPrice = _formatRupiah(amount);
                 String dateString = "";
@@ -865,7 +694,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   textColor,
                   dateColor,
                   data,
-                  user,
                 );
               }).toList(),
             ],
@@ -875,6 +703,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // --- SWIPE GESTURE & POP-UP DIALOG ---
   Widget _transactionItem(
     String docId,
     String title,
@@ -884,49 +713,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color titleColor,
     Color subtitleColor,
     Map<String, dynamic> rawData,
-    User user,
   ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 15),
       child: Dismissible(
         key: Key(docId),
-        confirmDismiss: (direction) async {
-          if (direction == DismissDirection.startToEnd) {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => AddTransactionSheet(
-                transactionId: docId,
-                transactionData: rawData,
-              ),
-            );
-            return false;
-          } else {
-            return await showDialog(
-              context: context,
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: const Text("Hapus Transaksi?"),
-                  content: const Text("Saldo di dompet akan dikembalikan."),
-                  actions: <Widget>[
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text("Batal"),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text(
-                        "Hapus",
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          }
-        },
+        // Swipe Right (Edit) & Left (Delete)
         background: Container(
           padding: const EdgeInsets.only(left: 20),
           decoration: BoxDecoration(
@@ -945,100 +737,142 @@ class _DashboardScreenState extends State<DashboardScreen> {
           alignment: Alignment.centerRight,
           child: const Icon(Icons.delete_outline, color: Colors.red, size: 28),
         ),
+        confirmDismiss: (direction) async {
+          if (direction == DismissDirection.startToEnd) {
+            // EDIT
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => AddTransactionSheet(
+                transactionId: docId,
+                transactionData: rawData,
+              ),
+            );
+            return false; // Jangan hapus dari list visual dulu
+          } else {
+            // DELETE (Dialog Konfirmasi)
+            return await showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: const Text("Hapus Transaksi?"),
+                content: const Text(
+                  "Data akan dihapus permanen dan saldo dikembalikan.",
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text("Batal"),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text(
+                      "Hapus",
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        },
         onDismissed: (direction) async {
+          // PROSES HAPUS & REFUND SALDO
           if (direction == DismissDirection.endToStart) {
-            double amountToRefund = (rawData['amount'] ?? 0).toDouble();
+            double amount = (rawData['amount'] ?? 0).toDouble();
             String? walletId = rawData['walletId'];
             String type = rawData['type'] ?? 'expense';
 
             await FirebaseFirestore.instance
                 .collection('users')
-                .doc(user.uid)
+                .doc(user!.uid)
                 .collection('transactions')
                 .doc(docId)
                 .delete();
 
             if (walletId != null) {
-              double refund = type == 'expense'
-                  ? amountToRefund
-                  : -amountToRefund;
-              await FirebaseFirestore.instance
+              final walletRef = FirebaseFirestore.instance
                   .collection('users')
-                  .doc(user.uid)
+                  .doc(user!.uid)
                   .collection('wallets')
-                  .doc(walletId)
-                  .update({'balance': FieldValue.increment(refund)});
+                  .doc(walletId);
+              double refund = (type == 'expense') ? amount : -amount;
+              await walletRef.update({'balance': FieldValue.increment(refund)});
             }
-            if (mounted)
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text("$title dihapus"),
-                  backgroundColor: Colors.red,
-                ),
+
+            if (mounted) {
+              // GANTI SNACKBAR DENGAN POP-UP DIALOG SUKSES
+              UIHelper.showSuccess(
+                context,
+                "Terhapus",
+                "Transaksi telah dihapus.",
               );
+            }
           }
         },
-        child: Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+        child: GestureDetector(
+          onTap: () {
+            Map<String, dynamic> transactionData = {
+              ...rawData,
+              "title": title,
+              "date": subtitle,
+              "price": price,
+              "color": color,
+              "id": docId,
+            };
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    DetailTransactionScreen(data: transactionData),
               ),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            onTap: () {
-              Map<String, dynamic> transactionData = {
-                ...rawData,
-                "title": title,
-                "date": subtitle,
-                "price": price,
-                "color": color,
-                "id": docId,
-              };
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      DetailTransactionScreen(data: transactionData),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-              );
-            },
-            leading: CircleAvatar(
-              backgroundColor: color.withOpacity(0.1),
-              radius: 24,
-              child: Icon(Icons.monetization_on, color: color, size: 24),
+              ],
             ),
-            title: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: titleColor,
-                fontSize: 15,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
               ),
-            ),
-            subtitle: Text(
-              subtitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, color: subtitleColor),
-            ),
-            trailing: Text(
-              price,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: titleColor,
-                fontSize: 14,
+              leading: CircleAvatar(
+                backgroundColor: color.withOpacity(0.1),
+                radius: 24,
+                child: Icon(Icons.monetization_on, color: color, size: 24),
+              ),
+              title: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: titleColor,
+                  fontSize: 15,
+                ),
+              ),
+              subtitle: Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 12, color: subtitleColor),
+              ),
+              trailing: Text(
+                price,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: titleColor,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -1047,7 +881,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- WIDGET LAIN SAMA PERSIS SEPERTI SEBELUMNYA ---
   Widget _buildCustomFAB() {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1062,10 +895,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(
-          color: Colors.grey.shade200.withOpacity(0.2),
-          width: 1.5,
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1137,6 +966,116 @@ class _DashboardScreenState extends State<DashboardScreen> {
       shape: const CircularNotchedRectangle(),
       notchMargin: 8,
       child: const SizedBox(height: 60),
+    );
+  }
+}
+
+// === WIDGET DIALOG ANIMASI SUARA ===
+class VoiceListeningDialog extends StatefulWidget {
+  const VoiceListeningDialog({super.key});
+
+  @override
+  State<VoiceListeningDialog> createState() => _VoiceListeningDialogState();
+}
+
+class _VoiceListeningDialogState extends State<VoiceListeningDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  stt.SpeechToText _speech = stt.SpeechToText();
+  String _text = "Mendengarkan...";
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 1.0, end: 1.2).animate(_controller);
+
+    _startListening();
+  }
+
+  void _startListening() async {
+    bool available = await _speech.initialize();
+    if (available) {
+      _speech.listen(
+        onResult: (val) {
+          setState(() {
+            _text = val.recognizedWords;
+          });
+        },
+        localeId: "id_ID",
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 3),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _speech.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          ScaleTransition(
+            scale: _animation,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.mic, size: 50, color: Colors.red),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            "Silakan Bicara...",
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              _text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: Colors.black87),
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context, _text == "Mendengarkan..." ? "" : _text);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F4C5C),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+            ),
+            child: const Text(
+              "Selesai & Proses",
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

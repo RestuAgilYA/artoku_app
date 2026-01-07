@@ -80,7 +80,7 @@ class NotificationService {
 
     LoggerService.info("Menjadwalkan ulang notifikasi...");
 
-    // Jadwal 1: Makan Siang (12:00)
+    // Jadwal 1: Makan Siang (12:15)
     await _scheduleDaily(
       id: 101,
       title: "Waktunya Makan Siang! 🍛",

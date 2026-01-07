@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'detail_transaction_screen.dart';
 import 'add_transaction_sheet.dart';
+import 'package:artoku_app/services/ui_helper.dart'; // Import ini
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
@@ -29,12 +30,10 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     super.dispose();
   }
 
-  // Helper Format Rupiah
   String _formatRupiah(num number) {
     return "Rp ${number.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
   }
 
-  // Helper Format Tanggal Lengkap
   String _formatDate(Timestamp timestamp) {
     DateTime date = timestamp.toDate();
     List<String> months = [
@@ -51,10 +50,9 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       "Nov",
       "Des",
     ];
-    return "${date.day} ${months[date.month - 1]} ${date.year}"; // Format ringkas
+    return "${date.day} ${months[date.month - 1]} ${date.year}";
   }
 
-  // Helper Nama Bulan Tahun (Filter)
   String _getMonthYear(DateTime date) {
     List<String> months = [
       "Januari",
@@ -97,21 +95,16 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
       ),
       body: Column(
         children: [
-          // =========================================
-          // 1. AREA FILTER & SEARCH
-          // =========================================
+          // 1. FILTER & SEARCH
           Container(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 15),
             color: bgColor,
             child: Column(
               children: [
-                // SEARCH BAR
                 TextField(
                   controller: _searchController,
                   onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.toLowerCase();
-                    });
+                    setState(() => _searchQuery = value.toLowerCase());
                   },
                   style: TextStyle(color: textColor),
                   decoration: InputDecoration(
@@ -145,10 +138,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                         : null,
                   ),
                 ),
-
                 const SizedBox(height: 15),
-
-                // FILTER BULAN
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -184,10 +174,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     ),
                   ],
                 ),
-
                 const SizedBox(height: 10),
-
-                // FILTER TIPE
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -213,16 +200,14 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             ),
           ),
 
-          // =========================================
           // 2. LIST TRANSAKSI
-          // =========================================
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
                   .collection('users')
                   .doc(user?.uid)
                   .collection('transactions')
-                  .orderBy('createdAt', descending: true)
+                  .orderBy('date', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -235,33 +220,27 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
 
                 var allDocs = snapshot.data!.docs;
 
-                // --- FILTERING LOGIC ---
                 var filteredDocs = allDocs.where((doc) {
                   var data = doc.data() as Map<String, dynamic>;
                   Timestamp? t = data['date'];
                   if (t == null) return false;
 
                   DateTime date = t.toDate();
-
-                  // 1. Filter Bulan
                   bool matchMonth =
                       (date.year == _selectedMonth.year &&
                       date.month == _selectedMonth.month);
 
-                  // 2. Filter Tipe
                   bool matchType = true;
                   if (_selectedType != 'all') {
                     matchType = (data['type'] == _selectedType);
                   }
 
-                  // 3. Filter Search (Cari di Judul, Kategori, atau Note)
                   bool matchSearch = true;
                   if (_searchQuery.isNotEmpty) {
                     String category = (data['category'] ?? '')
                         .toString()
                         .toLowerCase();
                     String note = (data['note'] ?? '').toString().toLowerCase();
-                    // Kita cari di Note atau Kategori
                     matchSearch =
                         category.contains(_searchQuery) ||
                         note.contains(_searchQuery);
@@ -277,74 +256,57 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   return _buildEmptyState("Tidak ada transaksi di bulan ini.");
                 }
 
-                return Column(
-                  children: [
-                    // List View
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 15,
-                        ),
-                        itemCount: filteredDocs.length,
-                        itemBuilder: (context, index) {
-                          var doc = filteredDocs[index];
-                          var data = doc.data() as Map<String, dynamic>;
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 15,
+                  ),
+                  itemCount: filteredDocs.length,
+                  itemBuilder: (context, index) {
+                    var doc = filteredDocs[index];
+                    var data = doc.data() as Map<String, dynamic>;
 
-                          // --- LOGIKA TAMPILAN BARU ---
-                          // Ambil data
-                          String category =
-                              data['category'] ?? 'Tanpa Kategori';
-                          String note = data['note'] ?? '';
+                    String category = data['category'] ?? 'Tanpa Kategori';
+                    String note = data['note'] ?? '';
+                    String displayTitle = (note.isNotEmpty) ? note : category;
+                    String displaySubtitle = category;
 
-                          // TENTUKAN JUDUL UTAMA:
-                          // Jika ada Note, pakai Note (misal "Nasi Goreng").
-                          // Jika Note kosong, pakai Kategori (misal "Makanan").
-                          String displayTitle = (note.isNotEmpty)
-                              ? note
-                              : category;
+                    String dateString = "";
+                    if (data['date'] != null) {
+                      dateString = _formatDate(data['date'] as Timestamp);
+                    }
+                    String fullSubtitle = "$displaySubtitle • $dateString";
 
-                          // SUBTITLE:
-                          // Tampilkan Tanggal dan Kategori
-                          String dateString = "";
-                          if (data['date'] != null) {
-                            dateString = _formatDate(data['date'] as Timestamp);
-                          }
-                          String displaySubtitle = "$dateString • $category";
+                    double amount = (data['amount'] ?? 0).toDouble();
+                    String formattedPrice = _formatRupiah(amount);
 
-                          double amount = (data['amount'] ?? 0).toDouble();
-                          String formattedPrice = _formatRupiah(amount);
+                    bool isExpense = (data['type'] == 'expense');
+                    Color color = isExpense
+                        ? (data['color'] != null
+                              ? Color(data['color'])
+                              : Colors.red)
+                        : const Color(0xFF00897B);
 
-                          bool isExpense = (data['type'] == 'expense');
-                          Color color = isExpense
-                              ? (data['color'] != null
-                                    ? Color(data['color'])
-                                    : Colors.red)
-                              : const Color(0xFF00897B);
+                    String prefix = isExpense ? "- " : "+ ";
+                    Color amountColor = isExpense
+                        ? Colors.red
+                        : const Color(0xFF00897B);
 
-                          String prefix = isExpense ? "- " : "+ ";
-                          Color amountColor = isExpense
-                              ? Colors.red
-                              : const Color(0xFF00897B);
-
-                          return _buildTransactionItem(
-                            context,
-                            doc,
-                            data,
-                            displayTitle,
-                            displaySubtitle,
-                            formattedPrice,
-                            prefix,
-                            amountColor,
-                            color,
-                            isExpense,
-                            amount,
-                            cardColor,
-                          );
-                        },
-                      ),
-                    ),
-                  ],
+                    return _buildTransactionItem(
+                      context,
+                      doc,
+                      data,
+                      displayTitle,
+                      fullSubtitle,
+                      formattedPrice,
+                      prefix,
+                      amountColor,
+                      color,
+                      isExpense,
+                      amount,
+                      cardColor,
+                    );
+                  },
                 );
               },
             ),
@@ -354,7 +316,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
     );
   }
 
-  // WIDGET ITEM TRANSAKSI
+  // WIDGET ITEM TRANSAKSI (DENGAN SWIPE POP-UP FIX)
   Widget _buildTransactionItem(
     BuildContext context,
     QueryDocumentSnapshot doc,
@@ -387,7 +349,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             );
             return false;
           } else {
-            // HAPUS
+            // HAPUS - DIALOG KONFIRMASI
             return await showDialog(
               context: context,
               builder: (context) => AlertDialog(
@@ -442,82 +404,85 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 'balance': FieldValue.increment(refundAmount),
               });
             }
+
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Transaksi dihapus"),
-                  backgroundColor: Colors.red,
-                ),
+              // GANTI SNACKBAR KE POP-UP DIALOG SUKSES
+              UIHelper.showSuccess(
+                context,
+                "Terhapus",
+                "Transaksi telah dihapus.",
               );
             }
           }
         },
 
-        child: Container(
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+        child: GestureDetector(
+          onTap: () {
+            Map<String, dynamic> transactionData = {
+              ...data,
+              "title": title,
+              "date": subtitle,
+              "price": formattedPrice,
+              "color": color,
+              "id": doc.id,
+            };
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    DetailTransactionScreen(data: transactionData),
               ),
-            ],
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
-            ),
-            onTap: () {
-              // Kirim data ke Detail
-              Map<String, dynamic> transactionData = {
-                ...data,
-                "title": title, // Kirim judul yang sudah disesuaikan
-                "date": subtitle, // Kirim tanggal/subtitle
-                "price": formattedPrice,
-                "color": color,
-                "id": doc.id,
-              };
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      DetailTransactionScreen(data: transactionData),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
-              );
-            },
-            leading: CircleAvatar(
-              backgroundColor: color.withOpacity(0.1),
-              radius: 24,
-              child: Icon(
-                isExpense ? Icons.arrow_upward : Icons.arrow_downward,
-                color: color,
-                size: 24,
+              ],
+            ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
               ),
-            ),
-            // JUDUL UTAMA SEKARANG 'NOTE' (KALAU ADA)
-            title: Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-            ),
-            // SUBTITLE ADA KATEGORINYA
-            subtitle: Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey
-                    : Colors.grey.shade600,
+              leading: CircleAvatar(
+                backgroundColor: color.withOpacity(0.1),
+                radius: 24,
+                child: Icon(
+                  isExpense ? Icons.arrow_upward : Icons.arrow_downward,
+                  color: color,
+                  size: 24,
+                ),
               ),
-            ),
-            trailing: Text(
-              "$prefix$formattedPrice",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: amountColor,
-                fontSize: 14,
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+              subtitle: Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey
+                      : Colors.grey.shade600,
+                ),
+              ),
+              trailing: Text(
+                "$prefix$formattedPrice",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: amountColor,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),

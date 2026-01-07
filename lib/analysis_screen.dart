@@ -13,7 +13,6 @@ class AnalysisScreen extends StatefulWidget {
 class _AnalysisScreenState extends State<AnalysisScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   DateTime _selectedMonth = DateTime.now();
-  int _touchedIndex = -1;
 
   // 0 = Pengeluaran, 1 = Pemasukan, 2 = Banding (Arus Kas)
   int _viewMode = 0;
@@ -64,8 +63,6 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black;
     final Color bgColor = Theme.of(context).scaffoldBackgroundColor;
-
-    // [FIX] Variabel activeColor yang tidak terpakai sudah dihapus
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -224,123 +221,14 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                 return Column(
                   children: [
-                    // A. PIE CHART
-                    SizedBox(
-                      height: 250,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          PieChart(
-                            PieChartData(
-                              pieTouchData: PieTouchData(
-                                touchCallback:
-                                    (FlTouchEvent event, pieTouchResponse) {
-                                      setState(() {
-                                        if (!event
-                                                .isInterestedForInteractions ||
-                                            pieTouchResponse == null ||
-                                            pieTouchResponse.touchedSection ==
-                                                null) {
-                                          _touchedIndex = -1;
-                                          return;
-                                        }
-                                        _touchedIndex = pieTouchResponse
-                                            .touchedSection!
-                                            .touchedSectionIndex;
-                                      });
-                                    },
-                              ),
-                              borderData: FlBorderData(show: false),
-                              sectionsSpace: 2,
-                              centerSpaceRadius: 50,
-                              sections: List.generate(sortedEntries.length, (
-                                i,
-                              ) {
-                                final isTouched = i == _touchedIndex;
-                                final fontSize = isTouched ? 18.0 : 12.0;
-                                final radius = isTouched ? 60.0 : 50.0;
-
-                                String key = sortedEntries[i].key;
-                                double value = sortedEntries[i].value;
-
-                                Color color;
-                                if (_viewMode == 2) {
-                                  color = key == 'Pemasukan'
-                                      ? const Color(0xFF00897B)
-                                      : const Color(0xFF0F4C5C);
-                                } else {
-                                  var colorMap = _viewMode == 0
-                                      ? _expenseColors
-                                      : _incomeColors;
-                                  color = colorMap[key] ?? Colors.grey;
-                                }
-
-                                return PieChartSectionData(
-                                  color: color,
-                                  value: value,
-                                  title:
-                                      '${((value / grandTotal) * 100).toStringAsFixed(0)}%',
-                                  radius: radius,
-                                  titleStyle: TextStyle(
-                                    fontSize: fontSize,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    shadows: const [
-                                      Shadow(
-                                        color: Colors.black26,
-                                        blurRadius: 2,
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                          // INFO TENGAH CHART
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                _viewMode == 2
-                                    ? "Selisih"
-                                    : (_viewMode == 0
-                                          ? "Total Keluar"
-                                          : "Total Masuk"),
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: Colors.grey.shade500,
-                                ),
-                              ),
-                              Text(
-                                _viewMode == 2
-                                    ? _formatRupiah(totalIncome - totalExpense)
-                                    : _formatRupiah(grandTotal),
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                  color: textColor,
-                                ),
-                              ),
-                              if (_viewMode == 2)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    (totalIncome - totalExpense) >= 0
-                                        ? "Surplus"
-                                        : "Defisit",
-                                    style: TextStyle(
-                                      color: (totalIncome - totalExpense) >= 0
-                                          ? Colors.green
-                                          : Colors.red,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
-                      ),
+                    // A. PIE CHART (Widget Terpisah Anti-Kedip)
+                    _PieChartWidget(
+                      sortedEntries: sortedEntries,
+                      grandTotal: grandTotal,
+                      viewMode: _viewMode,
+                      expenseColors: _expenseColors,
+                      incomeColors: _incomeColors,
+                      textColor: textColor,
                     ),
 
                     const SizedBox(height: 20),
@@ -488,6 +376,145 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           Text(
             message,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// === WIDGET TERPISAH CHART (ANTI-FLICKER) ===
+class _PieChartWidget extends StatefulWidget {
+  final List<MapEntry<String, double>> sortedEntries;
+  final double grandTotal;
+  final int viewMode;
+  final Map<String, Color> expenseColors;
+  final Map<String, Color> incomeColors;
+  final Color textColor;
+
+  const _PieChartWidget({
+    required this.sortedEntries,
+    required this.grandTotal,
+    required this.viewMode,
+    required this.expenseColors,
+    required this.incomeColors,
+    required this.textColor,
+  });
+
+  @override
+  State<_PieChartWidget> createState() => _PieChartWidgetState();
+}
+
+class _PieChartWidgetState extends State<_PieChartWidget> {
+  int _touchedIndex = -1;
+
+  String _formatRupiah(num number) {
+    return "Rp ${number.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 250,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          PieChart(
+            PieChartData(
+              pieTouchData: PieTouchData(
+                touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions ||
+                        pieTouchResponse == null ||
+                        pieTouchResponse.touchedSection == null) {
+                      _touchedIndex = -1;
+                      return;
+                    }
+                    _touchedIndex =
+                        pieTouchResponse.touchedSection!.touchedSectionIndex;
+                  });
+                },
+              ),
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 2,
+              centerSpaceRadius: 50,
+              sections: List.generate(widget.sortedEntries.length, (i) {
+                final isTouched = i == _touchedIndex;
+                final fontSize = isTouched ? 18.0 : 12.0;
+                final radius = isTouched ? 60.0 : 50.0;
+
+                String key = widget.sortedEntries[i].key;
+                double value = widget.sortedEntries[i].value;
+
+                Color color;
+                if (widget.viewMode == 2) {
+                  color = key == 'Pemasukan'
+                      ? const Color(0xFF00897B)
+                      : const Color(0xFF0F4C5C);
+                } else {
+                  var colorMap = widget.viewMode == 0
+                      ? widget.expenseColors
+                      : widget.incomeColors;
+                  color = colorMap[key] ?? Colors.grey;
+                }
+
+                return PieChartSectionData(
+                  color: color,
+                  value: value,
+                  title:
+                      '${((value / widget.grandTotal) * 100).toStringAsFixed(0)}%',
+                  radius: radius,
+                  titleStyle: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: const [
+                      Shadow(color: Colors.black26, blurRadius: 2),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                widget.viewMode == 2
+                    ? "Selisih"
+                    : (widget.viewMode == 0 ? "Total Keluar" : "Total Masuk"),
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              ),
+              Text(
+                widget.viewMode == 2
+                    ? _formatRupiah(
+                        widget.sortedEntries.isNotEmpty &&
+                                widget.sortedEntries.length > 1
+                            ? (widget.sortedEntries[0].value -
+                                      widget.sortedEntries[1].value)
+                                  .abs()
+                            : widget.grandTotal,
+                      )
+                    : _formatRupiah(widget.grandTotal),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: widget.textColor,
+                ),
+              ),
+              if (widget.viewMode == 2)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    "Arus Kas",
+                    style: TextStyle(
+                      color: Colors.blueAccent,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
       ),

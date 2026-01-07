@@ -12,7 +12,7 @@ import 'login_screen.dart';
 import 'forgot_password_screen.dart';
 import 'about_screen.dart';
 import 'privacy_policy_screen.dart';
-import 'notification_service.dart'; // Pastikan import ini ada
+import 'notification_service.dart';
 import 'package:artoku_app/services/ui_helper.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -35,10 +35,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    // 1. Load status notifikasi dari memori HP
     _loadNotificationPreference();
 
-    // 2. Setup Stream Firestore
     if (currentUser != null) {
       _userStream = FirebaseFirestore.instance
           .collection('users')
@@ -49,7 +47,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- LOGIC LOAD STATUS NOTIFIKASI ---
+  // --- LOGIC NOTIFIKASI (JANGAN DIUBAH) ---
   Future<void> _loadNotificationPreference() async {
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
@@ -60,23 +58,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- LOGIC TOGGLE NOTIFIKASI ---
   void _handleNotificationToggle(bool value) async {
     setState(() => _isNotificationOn = value);
-
-    // Simpan ke SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('daily_reminder', value);
 
     if (value) {
-      // AKTIFKAN
-      // 1. Minta Izin
       await NotificationService().requestPermissions();
-      // 2. Jadwalkan
       await NotificationService().scheduleAllReminders();
-
       if (mounted) {
-        // Menggunakan UI Helper agar konsisten
         UIHelper.showSuccess(
           context,
           "Pengingat Aktif!",
@@ -84,13 +74,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
       }
     } else {
-      // MATIKAN
       await NotificationService().cancelAllNotifications();
-
       if (mounted) {
-        // Menggunakan UI Helper
         UIHelper.showSuccess(
-          // Bisa pakai showInfo jika Anda buat methodnya, tapi showSuccess juga oke
           context,
           "Pengingat Mati",
           "Jangan lupa catat sendiri ya. Hati-hati lupa! 🥺",
@@ -99,7 +85,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // --- LOGIC LANGUAGE DIALOG (COMING SOON) ---
   void _showLanguageDialog() {
     showDialog(
       context: context,
@@ -108,7 +93,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Pastikan aset ini ada, atau ganti errorBuilder dengan icon
             Image.asset(
               'assets/images/icon_ArtoKu.png',
               height: 60,
@@ -161,7 +145,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // --- BUILDER HEADER (ANTI-FLICKER) ---
   Widget _buildLiveHeader() {
     if (currentUser == null) {
       return _buildHeaderUI("Guest", "Please Login", null);
@@ -171,10 +154,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       stream: _userStream,
       builder: (context, snapshot) {
         String displayEmail = currentUser!.email ?? "-";
-
-        // Anti-Flicker: Gunakan data Auth (Cache) dulu saat loading
         String displayName = currentUser!.displayName ?? "Nama Belum Diatur";
-        String? photoBase64 = currentUser!.photoURL;
+        String? photoBase64 = currentUser!.photoURL; // Ini fallback Auth
 
         if (snapshot.hasData && snapshot.data!.exists) {
           Map<String, dynamic> data =
@@ -183,6 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           if (data['fullName'] != null && data['fullName'].isNotEmpty) {
             displayName = data['fullName'];
           }
+          // Ambil photoURL dari Firestore (Prioritas)
           if (data['photoURL'] != null && data['photoURL'].isNotEmpty) {
             photoBase64 = data['photoURL'];
           }
@@ -228,7 +210,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Dekorasi Lingkaran
           Positioned(
             top: -60,
             right: -60,
@@ -253,8 +234,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-
-          // Tombol Back
           Positioned(
             top: 40,
             left: 10,
@@ -263,8 +242,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onPressed: () => Navigator.pop(context),
             ),
           ),
-
-          // Konten Utama Header
           Padding(
             padding: const EdgeInsets.only(top: 80),
             child: Center(
@@ -277,10 +254,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                         ),
-                        child: CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Colors.white,
-                          backgroundImage: imageProvider,
+                        child: GestureDetector(
+                          onTap: () {
+                            // Fitur Lihat Foto Besar
+                            showDialog(
+                              context: context,
+                              builder: (ctx) => Dialog(
+                                backgroundColor: Colors.transparent,
+                                child: ClipOval(
+                                  child: Image(image: imageProvider),
+                                ),
+                              ),
+                            );
+                          },
+                          child: CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.white,
+                            backgroundImage: imageProvider,
+                          ),
                         ),
                       ),
                     ],
@@ -343,7 +334,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 20),
           _buildGroupTitle("App Settings"),
           _buildMenuCard([
-            // --- TOMBOL TES NOTIFIKASI DIHAPUS (CLEAN) ---
             _buildSwitchItem(
               Icons.notifications_outlined,
               "Pengingat Harian",
@@ -351,10 +341,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _handleNotificationToggle,
             ),
             _buildDivider(),
+            // TOGGLE TEMA DENGAN SIMPAN PREFS
             _buildSwitchItem(Icons.dark_mode_outlined, "Mode Gelap", isDark, (
               val,
-            ) {
+            ) async {
               themeNotifier.value = val ? ThemeMode.dark : ThemeMode.light;
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('isDarkMode', val);
               setState(() {});
             }),
             _buildDivider(),
@@ -530,9 +523,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// ---------------------------------------------------------
-// HALAMAN EDIT PROFILE (SUB-PAGE)
-// ---------------------------------------------------------
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
 
@@ -650,6 +640,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           newPhotoData = base64Image;
         }
 
+        // Simpan ke Firestore (Gambar Base64 aman di sini)
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'fullName': _nameController.text.trim(),
           'phone': _phoneController.text.trim(),
@@ -658,12 +649,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
           'lastUpdated': DateTime.now().toIso8601String(),
         }, SetOptions(merge: true));
 
-        // Update Firebase Auth Profile juga agar cache lebih cepat
+        // Update Auth (Hanya Display Name)
+        // KITA HAPUS updatePhotoURL AGAR TIDAK ERROR "URL TOO LONG"
         if (_nameController.text.trim().isNotEmpty) {
           await user.updateDisplayName(_nameController.text.trim());
-        }
-        if (newPhotoData != null) {
-          await user.updatePhotoURL(newPhotoData);
         }
 
         _initialName = _nameController.text.trim();
@@ -672,22 +661,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
         _currentPhotoData = newPhotoData;
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Profile berhasil diperbarui!"),
-              backgroundColor: Colors.green,
-            ),
-          );
+          UIHelper.showSuccess(context, "Berhasil", "Profil telah diperbarui!");
           Navigator.pop(context);
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text("Gagal menyimpan: $e"),
-              backgroundColor: Colors.red,
-            ),
-          );
+          UIHelper.showError(context, "Gagal menyimpan: $e");
         }
       }
     }
@@ -915,9 +894,6 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 }
 
-// ---------------------------------------------------------
-// HALAMAN CHANGE PASSWORD (SUB-PAGE)
-// ---------------------------------------------------------
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
 
@@ -938,27 +914,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     if (_oldPassController.text.isEmpty ||
         _newPassController.text.isEmpty ||
         _confirmPassController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Semua kolom harus diisi!")));
+      UIHelper.showError(context, "Semua kolom harus diisi!");
       return;
     }
     if (_newPassController.text != _confirmPassController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password baru tidak cocok!"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      UIHelper.showError(context, "Password baru tidak cocok!");
       return;
     }
     if (_newPassController.text.length < 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Password minimal 6 karakter"),
-          backgroundColor: Colors.red,
-        ),
-      );
+      UIHelper.showError(context, "Password minimal 6 karakter");
       return;
     }
 
@@ -974,11 +938,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         await user.reauthenticateWithCredential(credential);
         await user.updatePassword(_newPassController.text.trim());
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Password berhasil diubah!"),
-              backgroundColor: Colors.green,
-            ),
+          UIHelper.showSuccess(
+            context,
+            "Berhasil",
+            "Password berhasil diubah!",
           );
           Navigator.pop(context);
         }
@@ -990,9 +953,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           message = "Password baru terlalu lemah.";
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(message), backgroundColor: Colors.red),
-          );
+          UIHelper.showError(context, message);
         }
       }
     }
@@ -1045,8 +1006,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 setState(() => _obscureOld = !_obscureOld);
               },
             ),
-
-            // FITUR LUPA PASSWORD DI HALAMAN GANTI PASSWORD
             Align(
               alignment: Alignment.centerRight,
               child: TextButton(
@@ -1064,7 +1023,6 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 10),
             _buildPasswordField(
               "Password Baru",
