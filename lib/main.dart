@@ -1,33 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import ini
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // [IMPORT]
+
 import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
 import 'notification_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-// ValueNotifier agar perubahan tema bisa didengar oleh UI
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // 1. Load .env
-  try {
-    await dotenv.load(fileName: ".env");
-  } catch (e) {
-    debugPrint("Warning: File .env error: $e");
-  }
-
   await Firebase.initializeApp();
   await NotificationService().init();
 
-  // 2. Load Tema Tersimpan dari SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
-  final bool isDark = prefs.getBool('isDarkMode') ?? false;
-  themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
+  // [BARU] Load .env
+  try {
+    await dotenv.load(fileName: ".env");
+    print("Env loaded successfully");
+  } catch (e) {
+    print("Error loading .env: $e");
+  }
 
   runApp(const MyApp());
 }

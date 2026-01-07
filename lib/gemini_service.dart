@@ -14,7 +14,7 @@ class GeminiService {
   // 1. FUNGSI SCAN GAMBAR (STRUK)
   static Future<Map<String, dynamic>?> scanReceipt(File imageFile) async {
     if (_apiKey.isEmpty) {
-      debugPrint("Error: API Key Gemini belum diset di .env");
+      debugPrint("API Key Gemini Kosong! Cek .env");
       return null;
     }
 
