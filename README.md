@@ -72,7 +72,7 @@ flutter pub get
 Buat file bernama `.env` di *root folder* project (sejajar dengan `pubspec.yaml`), lalu isi dengan API Key Gemini Anda:
 
 ```env
-GEMINI_API_KEY=AIzaSyCvatWS289x-mQNyqITAeD2YspRmLCuqsc
+GEMINI_API_KEY=*********************
 
 ```
 
