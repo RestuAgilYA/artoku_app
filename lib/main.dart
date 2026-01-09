@@ -7,6 +7,7 @@ import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
 import 'notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
 
@@ -21,6 +22,18 @@ void main() async {
     print("Env loaded successfully");
   } catch (e) {
     print("Error loading .env: $e");
+  }
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    // Baca key 'isDarkMode', jika null anggap saja false (Light mode)
+    final bool isDarkMode = prefs.getBool('isDarkMode') ?? false;
+
+    // Update value notifier sesuai data yang disimpan
+    themeNotifier.value = isDarkMode ? ThemeMode.dark : ThemeMode.light;
+    print("Tema dimuat: ${isDarkMode ? 'Dark' : 'Light'}");
+  } catch (e) {
+    print("Gagal memuat tema: $e");
   }
 
   runApp(const MyApp());
