@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 import 'main.dart';
 import 'login_screen.dart';
@@ -627,6 +628,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
   }
 
   Future<void> _saveProfile() async {
+    // --- 1. VALIDASI INPUT SEBELUM PROSES ---
+    String inputPhone = _phoneController.text.trim();
+    
+    // Cek Awalan: Wajib 08 atau 62 (Jika tidak kosong)
+    if (inputPhone.isNotEmpty && 
+        !inputPhone.startsWith('08') && 
+        !inputPhone.startsWith('62')) {
+      UIHelper.showError(context, "Nomor HP harus berawalan '08' atau '62'");
+      return; // Stop di sini, jangan lanjut simpan
+    }
+
+    // Cek Panjang: Minimal 10 digit
+    if (inputPhone.isNotEmpty && inputPhone.length < 10) {
+      UIHelper.showError(context, "Nomor HP terlalu pendek (min 10 digit)!");
+      return; // Stop di sini
+    }
+
+    // --- 2. MULAI PROSES SIMPAN ---
     setState(() => _isLoading = true);
     User? user = FirebaseAuth.instance.currentUser;
 
@@ -634,6 +653,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       try {
         String? newPhotoData = _currentPhotoData;
 
+        // Proses Gambar jika ada yang baru dipilih
         if (_selectedImage != null) {
           final bytes = await _selectedImage!.readAsBytes();
           String base64Image = base64Encode(bytes);
@@ -643,20 +663,20 @@ class _EditProfilePageState extends State<EditProfilePage> {
         // Simpan ke Firestore (Gambar Base64 aman di sini)
         await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'fullName': _nameController.text.trim(),
-          'phone': _phoneController.text.trim(),
+          'phone': inputPhone, // Gunakan variabel yang sudah di-trim tadi
           'email': _emailController.text.trim(),
           'photoURL': newPhotoData,
           'lastUpdated': DateTime.now().toIso8601String(),
         }, SetOptions(merge: true));
 
         // Update Auth (Hanya Display Name)
-        // KITA HAPUS updatePhotoURL AGAR TIDAK ERROR "URL TOO LONG"
         if (_nameController.text.trim().isNotEmpty) {
           await user.updateDisplayName(_nameController.text.trim());
         }
 
+        // Update State Lokal
         _initialName = _nameController.text.trim();
-        _initialPhone = _phoneController.text.trim();
+        _initialPhone = inputPhone;
         _selectedImage = null;
         _currentPhotoData = newPhotoData;
 
@@ -670,6 +690,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
       }
     }
+    // Matikan Loading
     setState(() => _isLoading = false);
   }
 
@@ -802,10 +823,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       isReadOnly: true,
                     ),
                     const SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     _buildTextField(
                       "Nomor Telepon",
-                      "Masukkan nomor telepon Anda",
+                      "Contoh: 08123456789", // Ubah placeholder biar jelas
                       _phoneController,
+                      // TAMBAHAN: Paksa keyboard angka & hapus karakter aneh
+                      keyboardType: TextInputType.number,
+                      formatters: [
+                        FilteringTextInputFormatter.digitsOnly, 
+                        LengthLimitingTextInputFormatter(15),
+                      ],
                     ),
                     const SizedBox(height: 40),
                     SizedBox(
@@ -837,6 +865,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     String placeholder,
     TextEditingController controller, {
     bool isReadOnly = false,
+    TextInputType? keyboardType,
+    List<TextInputFormatter>? formatters,
   }) {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -855,6 +885,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
         TextField(
           controller: controller,
           readOnly: isReadOnly,
+          keyboardType: keyboardType,      // <--- Pasang disini
+          inputFormatters: formatters,
           style: TextStyle(
             color: isReadOnly
                 ? (isDark ? Colors.white54 : Colors.grey)

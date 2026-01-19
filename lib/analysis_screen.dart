@@ -439,38 +439,41 @@ class _PieChartWidgetState extends State<_PieChartWidget> {
               sectionsSpace: 2,
               centerSpaceRadius: 50,
               sections: List.generate(widget.sortedEntries.length, (i) {
-                final isTouched = i == _touchedIndex;
-                final fontSize = isTouched ? 18.0 : 12.0;
-                final radius = isTouched ? 60.0 : 50.0;
+              final isTouched = i == _touchedIndex;
+              
+              // Membesar saat disentuh (Logic lama Anda)
+              final fontSize = isTouched ? 16.0 : 12.0; // Sedikit saya kecilkan font touch agar nominal muat
+              final radius = isTouched ? 60.0 : 50.0;
 
-                String key = widget.sortedEntries[i].key;
-                double value = widget.sortedEntries[i].value;
+              String key = widget.sortedEntries[i].key;
+              double value = widget.sortedEntries[i].value;
 
-                Color color;
-                if (widget.viewMode == 2) {
-                  color = key == 'Pemasukan'
-                      ? const Color(0xFF00897B)
-                      : const Color(0xFF0F4C5C);
-                } else {
-                  var colorMap = widget.viewMode == 0
-                      ? widget.expenseColors
-                      : widget.incomeColors;
-                  color = colorMap[key] ?? Colors.grey;
-                }
+              Color color;
+              if (widget.viewMode == 2) {
+                color = key == 'Pemasukan'
+                    ? const Color(0xFF00897B)
+                    : const Color(0xFF0F4C5C);
+              } else {
+                var colorMap = widget.viewMode == 0
+                    ? widget.expenseColors
+                    : widget.incomeColors;
+                color = colorMap[key] ?? Colors.grey;
+              }
 
-                return PieChartSectionData(
-                  color: color,
-                  value: value,
-                  title:
-                      '${((value / widget.grandTotal) * 100).toStringAsFixed(0)}%',
-                  radius: radius,
-                  titleStyle: TextStyle(
-                    fontSize: fontSize,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: const [
-                      Shadow(color: Colors.black26, blurRadius: 2),
-                    ],
+              return PieChartSectionData(
+                color: color,
+                value: value,
+                title: isTouched 
+                  ? _formatRupiah(value) 
+                  : '${((value / widget.grandTotal) * 100).toStringAsFixed(0)}%',
+                radius: radius,
+                titleStyle: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  shadows: const [
+                  Shadow(color: Colors.black26, blurRadius: 2),
+                  ],
                   ),
                 );
               }),
