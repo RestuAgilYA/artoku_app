@@ -185,8 +185,8 @@ class DetailTransactionScreen extends StatelessWidget {
     BuildContext context,
     String? docId,
     dynamic amountRaw,
-    String? walletId,
-    String type,
+    String? walletIdRaw, // Kita ubah nama param biar gak bingung
+    String typeRaw,
   ) {
     if (docId == null) return;
 
@@ -195,57 +195,112 @@ class DetailTransactionScreen extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Text("Hapus Transaksi?"),
         content: const Text(
-          "Data akan dihapus permanen dan saldo dikembalikan.",
+          "Data akan dihapus permanen. Saldo dompet akan dikembalikan (jika data valid).",
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text("Batal"),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () async {
-              // 1. Hapus Dokumen
+              Navigator.pop(context); // Tutup Dialog dulu
+              
               final user = FirebaseAuth.instance.currentUser;
-              if (user != null) {
-                await FirebaseFirestore.instance
+              if (user == null) return;
+
+              try {
+                // 1. AMBIL DATA FRESH DARI DATABASE (PENTING!)
+                // Kita tidak percaya data dari layar sebelumnya, kita ambil langsung dari sumbernya.
+                final docRef = FirebaseFirestore.instance
                     .collection('users')
                     .doc(user.uid)
                     .collection('transactions')
-                    .doc(docId)
-                    .delete();
+                    .doc(docId);
+                
+                final docSnap = await docRef.get();
+                
+                if (!docSnap.exists) {
+                   UIHelper.showError(context, "Error: Data transaksi tidak ditemukan di DB!");
+                   return;
+                }
 
-                // 2. Refund Saldo
-                if (walletId != null) {
-                  final walletRef = FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .collection('wallets')
-                      .doc(walletId);
-                  double amount = (amountRaw ?? 0).toDouble();
+                final data = docSnap.data() as Map<String, dynamic>;
+                
+                // 2. DIAGNOSA DATA
+                String? realWalletId = data['walletId'];
+                String realType = data['type'] ?? 'expense';
+                
+                // Parsing Amount Super Aman (Handle String/Int/Double)
+                double realAmount = 0;
+                if (data['amount'] is int) {
+                  realAmount = (data['amount'] as int).toDouble();
+                } else if (data['amount'] is double) {
+                  realAmount = data['amount'];
+                } else if (data['amount'] is String) {
+                  realAmount = double.tryParse(data['amount']) ?? 0;
+                }
 
-                  // Kalau Expense dihapus -> Saldo Nambah
-                  // Kalau Income dihapus -> Saldo Kurang
-                  double refund = (type == 'expense') ? amount : -amount;
+                // Cek Tipe Bahasa (Inggris/Indo)
+                bool isExpense = (realType == 'expense' || realType == 'Pengeluaran');
 
-                  await walletRef.update({
-                    'balance': FieldValue.increment(refund),
-                  });
+                // 3. DEBUGGING: TAMPILKAN APA YANG DIBACA APLIKASI
+                // Jika walletId null, kita akan tahu disini.
+                if (realWalletId == null || realWalletId.isEmpty) {
+                   UIHelper.showError(context, "Gagal Refund: ID Dompet Kosong di Database!");
+                   // Tetap hapus history biar gak nyangkut, tapi saldo ga balik
+                   await docRef.delete();
+                   Navigator.pop(context); 
+                   return;
+                }
+
+                // 4. EKSEKUSI REFUND
+                final walletRef = FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .collection('wallets')
+                    .doc(realWalletId);
+                
+                // Cek apakah dompetnya beneran ada?
+                final walletSnap = await walletRef.get();
+                if (!walletSnap.exists) {
+                   UIHelper.showError(context, "Gagal Refund: Dompet dengan ID '$realWalletId' sudah dihapus!");
+                   await docRef.delete();
+                   Navigator.pop(context);
+                   return;
+                }
+
+                // Hitung Refund
+                double refund = isExpense ? realAmount : -realAmount;
+
+                // Update Saldo
+                await walletRef.update({
+                  'balance': FieldValue.increment(refund),
+                });
+
+                // Hapus Transaksi
+                await docRef.delete();
+
+                if (context.mounted) {
+                  Navigator.pop(context); // Balik ke Dashboard
+                  
+                  // PESAN SUKSES DENGAN DETAIL
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Sukses! Saldo dikembalikan: Rp ${realAmount.toStringAsFixed(0)} ke Dompet."),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+
+              } catch (e) {
+                if (context.mounted) {
+                  UIHelper.showError(context, "Error Sistem: $e");
                 }
               }
-
-              if (context.mounted) {
-                Navigator.pop(context); // Tutup Dialog
-                Navigator.pop(context); // Balik Dashboard
-
-                // GANTI SNACKBAR LAMA DENGAN UIHELPER
-                UIHelper.showSuccess(
-                  context,
-                  "Terhapus",
-                  "Transaksi berhasil dihapus dan saldo dikembalikan.",
-                );
-              }
             },
-            child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

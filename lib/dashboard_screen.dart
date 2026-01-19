@@ -705,16 +705,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: const Icon(Icons.delete, color: Colors.white),
         ),
         onDismissed: (d) async {
+          // 1. Hapus Dokumen Transaksi
           await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
               .collection('transactions')
               .doc(docId)
               .delete();
+
+          // 2. Refund Saldo (LOGIC FIX - Support 2 Bahasa)
           if (rawData['walletId'] != null) {
-            double refund = (rawData['type'] == 'expense')
-                ? rawData['amount']
-                : -rawData['amount'];
+            String type = rawData['type'] ?? 'expense';
+            // Pastikan amount jadi double agar aman
+            double amount = (rawData['amount'] ?? 0).toDouble();
+
+            // --- PERBAIKAN DISINI ---
+            // Cek apakah tipe 'expense' ATAU 'Pengeluaran'
+            bool isExpense = (type == 'expense' || type == 'Pengeluaran');
+
+            // Jika Expense dihapus -> Saldo Nambah (+)
+            // Jika Income dihapus -> Saldo Kurang (-)
+            double refund = isExpense ? amount : -amount;
+            // ------------------------
+
             await FirebaseFirestore.instance
                 .collection('users')
                 .doc(user.uid)
@@ -839,7 +852,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          const SizedBox(width: 12),
+          // HAPUS SIZEDBOX GANDA DISINI
           GestureDetector(
             onTap: () => AiTransactionHelper.showVoiceInput(context),
             child: _buildCircularIcon(Icons.mic_none_rounded),
