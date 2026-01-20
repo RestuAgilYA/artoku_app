@@ -201,7 +201,7 @@ class _VoiceInputPopupState extends State<_VoiceInputPopup> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            "Rekam Transaksi",
+            "Cth: Beli Nasi Goreng 20k cash",
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 30),

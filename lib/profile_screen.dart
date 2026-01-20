@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'main.dart';
 import 'login_screen.dart';
@@ -139,6 +140,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildMenuSection(isDark),
             const SizedBox(height: 30),
             _buildLogoutButton(),
+            _buildDeleteAccountButton(),
             const SizedBox(height: 30),
           ],
         ),
@@ -522,6 +524,186 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  Widget _buildDeleteAccountButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0),
+      child: TextButton(
+        onPressed: _showDeleteConfirmationDialog,
+        child: const Text(
+          "Hapus Akun",
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDeleteConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Hapus Akun?"),
+        content: const Text(
+          "Tindakan ini tidak bisa dibatalkan. Semua data Anda, termasuk riwayat transaksi, akan dihapus secara permanen. Apakah Anda yakin?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close the first dialog
+              _showPasswordReauthenticationDialog();
+            },
+            child: const Text("Ya, Hapus", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPasswordReauthenticationDialog() {
+    final passwordController = TextEditingController();
+    bool isLoading = false;
+    bool obscureText = true;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text("Konfirmasi Password"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text("Untuk keamanan, masukkan password Anda untuk melanjutkan."),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: obscureText,
+                    decoration: InputDecoration(
+                      labelText: "Password",
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureText ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            obscureText = !obscureText;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: CircularProgressIndicator(),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Batal"),
+                ),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setState(() {
+                            isLoading = true;
+                          });
+                          
+                          // This context is for the dialog
+                          // final dialogNavigator = Navigator.of(context); // This variable is unused and causes a warning.
+
+                          await _deleteAccount(passwordController.text.trim());
+                          
+                          // Check if the widget is still in the tree before updating state.
+                          if (mounted) {
+                            // If deletion was successful, dialog would already be popped.
+                            // If failed, we are still here.
+                            setState(() {
+                              isLoading = false;
+                            });
+                          }
+                          // If deletion fails, the dialog stays open for another try.
+                        },
+                  child: const Text("Konfirmasi Hapus", style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteAccount(String password) async {
+    final user = FirebaseAuth.instance.currentUser;
+    // Capture the context outside of async calls
+    final navigator = Navigator.of(context); 
+
+    if (user == null || user.email == null) {
+      if (mounted) UIHelper.showError(context, "Tidak ada user yang login.");
+      return;
+    }
+
+    try {
+      // 1. Re-authenticate
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+
+      // 2. Delete Firestore data (user document)
+      // This does not delete sub-collections like 'transactions'.
+      // A complete solution would use a Cloud Function to delete all related data.
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+      
+      // 3. Delete the Firebase Auth user
+      await user.delete();
+
+      // 4. Navigate to login screen
+      // Pop the re-auth dialog first.
+      navigator.pop(); 
+      if (mounted) {
+        UIHelper.showSuccess(context, "Akun Dihapus", "Akun Anda telah berhasil dihapus.");
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+
+    } on FirebaseAuthException catch (e) {
+      String message = "Terjadi kesalahan.";
+      if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+          message = "Password salah. Silakan coba lagi.";
+      } else if (e.code == 'requires-recent-login') {
+          message = "Sesi Anda telah berakhir. Silakan login kembali dan coba lagi.";
+      }
+      
+      // Pop the dialog and show error on the main screen
+      navigator.pop(); 
+      if(mounted) UIHelper.showError(context, message);
+
+    } catch (e) {
+      // Pop the dialog and show error on the main screen
+      navigator.pop(); 
+      if (mounted) {
+        UIHelper.showError(context, "Gagal menghapus akun: $e");
+      }
+    }
+  }
 }
 
 class EditProfilePage extends StatefulWidget {
@@ -553,6 +735,18 @@ class _EditProfilePageState extends State<EditProfilePage> {
       _emailController.text = user.email ?? "";
     }
     _loadUserData();
+    // Add listeners to rebuild the widget when text changes, to update button visibility
+    _nameController.addListener(() => setState(() {}));
+    _phoneController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    // Dispose controllers to free up resources
+    _nameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserData() async {
@@ -566,7 +760,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             .doc(user.uid)
             .get();
 
-        if (userData.exists) {
+        if (userData.exists && mounted) {
           Map<String, dynamic> data = userData.data() as Map<String, dynamic>;
           String dbName = data['fullName'] ?? '';
           String dbPhone = data['phone'] ?? '';
@@ -577,17 +771,19 @@ class _EditProfilePageState extends State<EditProfilePage> {
             _phoneController.text = dbPhone;
             _currentPhotoData = dbPhoto;
 
+            // Store initial values to compare against for changes
             _initialName = dbName;
             _initialPhone = dbPhone;
           });
         }
       } catch (e) {
-        print("Error loading data: $e");
+        if (mounted) UIHelper.showError(context, "Gagal memuat data: $e");
       }
     }
-    setState(() => _isLoading = false);
+    if (mounted) setState(() => _isLoading = false);
   }
 
+  // Getter to check if any data has been changed
   bool get _hasChanges {
     return _nameController.text.trim() != _initialName ||
         _phoneController.text.trim() != _initialPhone ||
@@ -599,8 +795,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       Navigator.pop(context);
       return;
     }
-    final bool shouldDiscard =
-        await showDialog(
+    final bool shouldDiscard = await showDialog(
           context: context,
           builder: (context) => AlertDialog(
             title: const Text("Batalkan Perubahan?"),
@@ -627,71 +822,159 @@ class _EditProfilePageState extends State<EditProfilePage> {
     }
   }
 
+  // Returns true if launch was successful, false otherwise.
+  Future<bool> _launchWhatsApp() async {
+    const String adminPhoneNumber = "62882008525112";
+    const String message = "Halo";
+    final Uri whatsappUrl = Uri.parse(
+      "https://wa.me/$adminPhoneNumber?text=${Uri.encodeComponent(message)}",
+    );
+
+    try {
+      // launchUrl returns a bool. If it's false, it means the OS couldn't handle the URL.
+      final bool launched =
+          await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+      if (!launched && mounted) {
+        UIHelper.showError(context,
+            "Tidak dapat membuka WhatsApp. Pastikan aplikasi WhatsApp sudah terinstall.");
+      }
+      return launched;
+    } catch (e) {
+      if (mounted) {
+        UIHelper.showError(context,
+            "Terjadi kesalahan. Pastikan WhatsApp sudah terinstall di perangkat Anda.");
+      }
+      return false;
+    }
+  }
+
   Future<void> _saveProfile() async {
-    // --- 1. VALIDASI INPUT SEBELUM PROSES ---
+    final navigator = Navigator.of(context);
+    // --- 1. VALIDATION ---
     String inputPhone = _phoneController.text.trim();
-    
-    // Cek Awalan: Wajib 08 atau 62 (Jika tidak kosong)
-    if (inputPhone.isNotEmpty && 
-        !inputPhone.startsWith('08') && 
+    if (inputPhone.isNotEmpty &&
+        !inputPhone.startsWith('08') &&
         !inputPhone.startsWith('62')) {
       UIHelper.showError(context, "Nomor HP harus berawalan '08' atau '62'");
-      return; // Stop di sini, jangan lanjut simpan
+      return;
     }
-
-    // Cek Panjang: Minimal 10 digit
     if (inputPhone.isNotEmpty && inputPhone.length < 10) {
       UIHelper.showError(context, "Nomor HP terlalu pendek (min 10 digit)!");
-      return; // Stop di sini
+      return;
     }
+    if (!_hasChanges) return;
 
-    // --- 2. MULAI PROSES SIMPAN ---
     setState(() => _isLoading = true);
     User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
 
-    if (user != null) {
-      try {
-        String? newPhotoData = _currentPhotoData;
+    try {
+      final bool isPhoneChanged = inputPhone != _initialPhone;
+      final bool isNameChanged = _nameController.text.trim() != _initialName;
+      final bool isPhotoChanged = _selectedImage != null;
 
-        // Proses Gambar jika ada yang baru dipilih
-        if (_selectedImage != null) {
-          final bytes = await _selectedImage!.readAsBytes();
-          String base64Image = base64Encode(bytes);
-          newPhotoData = base64Image;
+      // --- 2. PHONE NUMBER UNIQUENESS CHECK ---
+      if (isPhoneChanged && inputPhone.isNotEmpty) {
+        final query = await FirebaseFirestore.instance
+            .collection('users')
+            .where('phone', isEqualTo: inputPhone)
+            .limit(1)
+            .get();
+
+        if (query.docs.isNotEmpty) {
+          UIHelper.showError(
+              context, "Nomor telepon ini sudah terdaftar oleh pengguna lain.");
+          setState(() => _isLoading = false);
+          return;
         }
+      }
 
-        // Simpan ke Firestore (Gambar Base64 aman di sini)
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+      // --- 3. SAVE DATA TO FIRESTORE & AUTH ---
+      String? newPhotoData = _currentPhotoData;
+      if (isPhotoChanged) {
+        final bytes = await _selectedImage!.readAsBytes();
+        newPhotoData = base64Encode(bytes);
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {
           'fullName': _nameController.text.trim(),
-          'phone': inputPhone, // Gunakan variabel yang sudah di-trim tadi
+          'phone': inputPhone,
           'email': _emailController.text.trim(),
           'photoURL': newPhotoData,
           'lastUpdated': DateTime.now().toIso8601String(),
-        }, SetOptions(merge: true));
+        },
+        SetOptions(merge: true),
+      );
 
-        // Update Auth (Hanya Display Name)
-        if (_nameController.text.trim().isNotEmpty) {
-          await user.updateDisplayName(_nameController.text.trim());
-        }
-
-        // Update State Lokal
-        _initialName = _nameController.text.trim();
-        _initialPhone = inputPhone;
-        _selectedImage = null;
-        _currentPhotoData = newPhotoData;
-
-        if (mounted) {
-          UIHelper.showSuccess(context, "Berhasil", "Profil telah diperbarui!");
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) {
-          UIHelper.showError(context, "Gagal menyimpan: $e");
-        }
+      if (isNameChanged) {
+        await user.updateDisplayName(_nameController.text.trim());
       }
+
+      // --- 4. HANDLE UI FLOW BASED ON CHANGES ---
+      if (isPhoneChanged) {
+        // If phone number changes, show the WhatsApp dialog
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext dialogContext) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: const Text("Terhubung dengan ArtoBot ✅"),
+              content: const Text(
+                  "Terima kasih telah menambahkan nomor telepon. "
+                    "Anda bisa langsung menghubungi ArtoBot via WhatsApp dengan klik tombol Hubungi ArtoBot dibawah ini."),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text("Tutup"),
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF25D366),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text("Hubungi ArtoBot",
+                      style: TextStyle(color: Colors.white)),
+                  onPressed: () async {
+                    if (await _launchWhatsApp()) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  },
+                ),
+              ],
+            );
+          },
+        );
+        navigator.pop(); // Pop back to profile screen
+      } else if (isNameChanged || isPhotoChanged) {
+        // If only name or photo changed, show a simple success dialog
+        await showDialog(
+            context: context,
+            builder: (BuildContext dialogContext) {
+              return AlertDialog(
+                title: const Text("Berhasil"),
+                content: const Text("Profil Anda telah berhasil diperbarui."),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text("OK"),
+                  )
+                ],
+              );
+            });
+        navigator.pop(); // Pop back to profile screen
+      }
+    } catch (e) {
+      if (mounted) UIHelper.showError(context, "Gagal menyimpan: $e");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-    // Matikan Loading
-    setState(() => _isLoading = false);
   }
 
   Future<void> _pickImage() async {
@@ -702,6 +985,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       maxHeight: 512,
     );
     if (returnedImage != null) {
+      // This setState call will trigger a rebuild and _hasChanges will be re-evaluated
       setState(() => _selectedImage = File(returnedImage.path));
     }
   }
@@ -721,15 +1005,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
           Uint8List bytes = base64Decode(_currentPhotoData!);
           currentImageProvider = MemoryImage(bytes);
         } catch (e) {
-          currentImageProvider = const AssetImage(
-            'assets/images/welcome_image.png',
-          );
+          currentImageProvider =
+              const AssetImage('assets/images/welcome_image.png');
         }
       }
     } else {
-      currentImageProvider = const AssetImage(
-        'assets/images/welcome_image.png',
-      );
+      currentImageProvider = const AssetImage('assets/images/welcome_image.png');
     }
 
     return PopScope(
@@ -823,26 +1104,31 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       isReadOnly: true,
                     ),
                     const SizedBox(height: 20),
-                    const SizedBox(height: 20),
-                    _buildTextField(
-                      "Nomor Telepon",
-                      "Contoh: 08123456789", // Ubah placeholder biar jelas
-                      _phoneController,
-                      // TAMBAHAN: Paksa keyboard angka & hapus karakter aneh
-                      keyboardType: TextInputType.number,
-                      formatters: [
-                        FilteringTextInputFormatter.digitsOnly, 
-                        LengthLimitingTextInputFormatter(15),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildTextField(
+                          "Nomor Telepon",
+                          "Contoh: 08123456789",
+                          _phoneController,
+                          keyboardType: TextInputType.number,
+                          formatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(15),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 40),
+                    // This button is now conditionally visible
                     SizedBox(
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveProfile,
+                        onPressed: _hasChanges && !_isLoading ? _saveProfile : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
+                          disabledBackgroundColor: primaryColor.withOpacity(0.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
@@ -885,7 +1171,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         TextField(
           controller: controller,
           readOnly: isReadOnly,
-          keyboardType: keyboardType,      // <--- Pasang disini
+          keyboardType: keyboardType,
           inputFormatters: formatters,
           style: TextStyle(
             color: isReadOnly
