@@ -402,20 +402,32 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
 
       final wallets = snapshot.docs
           .map((doc) => WalletModel.fromSnapshot(doc))
+          .where((wallet) => !wallet.isLocked)
           .toList();
 
       if (mounted) {
         setState(() {
           _wallets = wallets;
           if (_isEditMode) {
-            _sourceWallet = wallets.firstWhere(
-              (w) => w.id == widget.transfer!.sourceWalletId,
-              orElse: () => wallets.first,
-            );
-            _destinationWallet = wallets.firstWhere(
-              (w) => w.id == widget.transfer!.destinationWalletId,
-              orElse: () => wallets.last,
-            );
+            // Try to find the wallets from the transfer being edited
+            try {
+              _sourceWallet = wallets.firstWhere(
+                (w) => w.id == widget.transfer!.sourceWalletId,
+              );
+            } catch (e) {
+              // If source wallet is locked, use first available
+              _sourceWallet = wallets.isNotEmpty ? wallets.first : null;
+            }
+            
+            try {
+              _destinationWallet = wallets.firstWhere(
+                (w) => w.id == widget.transfer!.destinationWalletId,
+              );
+            } catch (e) {
+              // If destination wallet is locked, use last available
+              _destinationWallet = wallets.length > 1 ? wallets.last : null;
+            }
+            
             _amountController.text = NumberFormat('#,###', 'id_ID')
                 .format((widget.transfer!.amount).toInt());
             _notesController.text = widget.transfer!.notes;

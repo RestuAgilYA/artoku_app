@@ -264,8 +264,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               context: context,
                               builder: (ctx) => Dialog(
                                 backgroundColor: Colors.transparent,
-                                child: ClipOval(
-                                  child: Image(image: imageProvider),
+                                insetPadding: const EdgeInsets.all(20),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(25),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 4,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        blurRadius: 15,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(21),
+                                    child: Image(
+                                      image: imageProvider,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
                                 ),
                               ),
                             );
@@ -1228,7 +1249,30 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   bool _obscureConfirm = true;
   bool _isLoading = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _oldPassController.addListener(() => setState(() {}));
+    _newPassController.addListener(() => setState(() {}));
+    _confirmPassController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _oldPassController.dispose();
+    _newPassController.dispose();
+    _confirmPassController.dispose();
+    super.dispose();
+  }
+
+  bool get _isFormComplete => 
+      _oldPassController.text.isNotEmpty &&
+      _newPassController.text.isNotEmpty &&
+      _confirmPassController.text.isNotEmpty;
+
   Future<void> _changePassword() async {
+    final navigator = Navigator.of(context);
+    
     if (_oldPassController.text.isEmpty ||
         _newPassController.text.isEmpty ||
         _confirmPassController.text.isEmpty) {
@@ -1255,23 +1299,54 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         );
         await user.reauthenticateWithCredential(credential);
         await user.updatePassword(_newPassController.text.trim());
+        
         if (mounted) {
-          UIHelper.showSuccess(
-            context,
-            "Berhasil",
-            "Password berhasil diubah!",
+          // Show success dialog first
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext dialogContext) {
+              return AlertDialog(
+                title: const Text("Berhasil"),
+                content: const Text(
+                  "Password Anda telah berhasil diubah. "
+                  "Untuk keamanan, silakan login kembali dengan password baru.",
+                ),
+                actions: [
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text("OK"),
+                  ),
+                ],
+              );
+            },
           );
-          Navigator.pop(context);
+          
+          // Then sign out and navigate to login
+          await FirebaseAuth.instance.signOut();
+          if (mounted) {
+            navigator.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (context) => const LoginScreen()),
+              (route) => false,
+            );
+          }
         }
       } on FirebaseAuthException catch (e) {
         String message = "Gagal mengganti password.";
-        if (e.code == 'wrong-password')
+        if (e.code == 'wrong-password') {
           message = "Password lama salah.";
-        else if (e.code == 'weak-password')
+        } else if (e.code == 'weak-password') {
           message = "Password baru terlalu lemah.";
+        } else if (e.code == 'requires-recent-login') {
+          message = "Sesi Anda telah berakhir. Silakan login kembali dan coba lagi.";
+        }
 
         if (mounted) {
           UIHelper.showError(context, message);
+        }
+      } catch (e) {
+        if (mounted) {
+          UIHelper.showError(context, "Error: $e");
         }
       }
     }
@@ -1364,9 +1439,10 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: _isLoading ? null : _changePassword,
+                onPressed: (_isFormComplete && !_isLoading) ? _changePassword : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
+                  disabledBackgroundColor: primaryColor.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),

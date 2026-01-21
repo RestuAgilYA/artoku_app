@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:artoku_app/services/ui_helper.dart';
 
 // Formatter for thousand separators
 class ThousandsFormatter extends TextInputFormatter {
@@ -69,6 +70,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     Color selectedColor =
         document != null ? Color(document['color']) : _presetColors[0];
 
+    if (document == null) {
+      // For new wallet, get available color
+      _getAvailableColorFuture().then((color) {
+        selectedColor = color;
+      });
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -100,6 +108,30 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Validasi nama dompet tidak boleh kosong
+              if (nameController.text.trim().isEmpty) {
+                UIHelper.showError(context, "Nama dompet tidak boleh kosong!");
+                return;
+              }
+
+              // Validasi nama dompet unik (jika tambah baru atau edit dengan nama berbeda)
+              if (document == null || nameController.text.trim() != document['name']) {
+                final query = await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .collection('wallets')
+                    .where('name', isEqualTo: nameController.text.trim())
+                    .limit(1)
+                    .get();
+
+                if (query.docs.isNotEmpty) {
+                  if (mounted) {
+                    UIHelper.showError(context, "Nama dompet sudah ada. Silakan gunakan nama lain!");
+                  }
+                  return;
+                }
+              }
+
               final walletRef = FirebaseFirestore.instance
                   .collection('users')
                   .doc(user!.uid)
@@ -129,6 +161,26 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         ],
       ),
     );
+  }
+
+  Future<Color> _getAvailableColorFuture() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('wallets')
+        .get();
+    
+    final usedColors = snapshot.docs
+        .map((doc) => (doc['color'] as int))
+        .toSet();
+    
+    // Find first available color
+    for (Color color in _presetColors) {
+      if (!usedColors.contains(color.value)) {
+        return color;
+      }
+    }
+    return _presetColors[0];
   }
 
   void _showTransferForm() {
@@ -415,32 +467,73 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
   }
 
   void _toggleLock(String walletId, bool currentStatus) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('wallets')
-        .doc(walletId)
-        .update({'isLocked': !currentStatus});
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          !currentStatus
-              ? "Dompet disembunyikan dari transaksi"
-              : "Dompet aktif kembali",
-        ),
-        duration: const Duration(seconds: 1),
-      ),
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(currentStatus ? "Buka Kunci Dompet" : "Kunci Dompet"),
+          content: Text(
+            currentStatus
+                ? "Dompet akan diaktifkan kembali dan akan tampil di form Catat Transaksi dan fitur transfer."
+                : "Dompet akan dikunci dan tidak akan tampil di form Catat Transaksi dan fitur transfer.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Batal"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .collection('wallets')
+                    .doc(walletId)
+                    .update({'isLocked': !currentStatus});
+                
+                Navigator.pop(context);
+              },
+              child: Text(currentStatus ? "Buka Kunci" : "Kunci"),
+            ),
+          ],
+        );
+      },
     );
   }
 
   void _deleteWallet(String walletId) {
-    FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('wallets')
-        .doc(walletId)
-        .delete();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text("Hapus Dompet"),
+          content: const Text(
+            "Apakah Anda yakin ingin menghapus dompet ini? Tindakan ini tidak dapat dibatalkan.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Batal"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .collection('wallets')
+                    .doc(walletId)
+                    .delete();
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+              ),
+              child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String _formatRupiah(num number) =>
