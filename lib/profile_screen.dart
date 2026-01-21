@@ -488,7 +488,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             valueColor: AlwaysStoppedAnimation(Colors.white),
                           ),
                         )
-                      : const Text("Reset & Buat Baru"),
+                      : const Text(
+                          "Reset & Buat Baru",
+                          style: TextStyle(color: Colors.white),
+                        ),
                 ),
               ],
             );
