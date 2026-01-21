@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart'; // [IMPORT]
 
 import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
+import 'app_lock_screen.dart';
 import 'notification_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -89,7 +90,7 @@ class MyApp extends StatelessWidget {
                 );
               }
               if (snapshot.hasData) {
-                return const DashboardScreen();
+                return const _AppLockWrapper(child: DashboardScreen());
               }
               return const WelcomeScreen();
             },
@@ -97,5 +98,82 @@ class MyApp extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _AppLockWrapper extends StatefulWidget {
+  final Widget child;
+
+  const _AppLockWrapper({required this.child});
+
+  @override
+  State<_AppLockWrapper> createState() => _AppLockWrapperState();
+}
+
+class _AppLockWrapperState extends State<_AppLockWrapper>
+    with WidgetsBindingObserver {
+  bool _isLocked = false;
+  DateTime? _pausedTime;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkAppLockStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _checkAppLockStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isEnabled = prefs.getBool('appLockEnabled') ?? false;
+    if (isEnabled) {
+      setState(() => _isLocked = true);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedTime = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      _handleAppResume();
+    }
+  }
+
+  void _handleAppResume() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isEnabled = prefs.getBool('appLockEnabled') ?? false;
+
+    if (!isEnabled) {
+      setState(() => _isLocked = false);
+      return;
+    }
+
+    // Check apakah app di-pause lebih dari 30 detik
+    if (_pausedTime != null) {
+      final duration = DateTime.now().difference(_pausedTime!);
+      if (duration.inSeconds > 30) {
+        setState(() => _isLocked = true);
+      }
+    } else {
+      setState(() => _isLocked = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLocked) {
+      return AppLockScreen(
+        onUnlockSuccess: () {
+          setState(() => _isLocked = false);
+        },
+      );
+    }
+    return widget.child;
   }
 }

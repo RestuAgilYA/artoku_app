@@ -215,15 +215,32 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                     _buildWalletDropdown(
                       label: "Dari Dompet",
                       value: _sourceWallet,
-                      onChanged: (wallet) => setState(() => _sourceWallet = wallet),
-                      items: _wallets,
+                      onChanged: (wallet) {
+                        setState(() {
+                          _sourceWallet = wallet;
+                          // Jika dompet tujuan sama dengan dompet sumber, reset tujuan
+                          if (_destinationWallet != null && _destinationWallet!.id == wallet?.id) {
+                            _destinationWallet = null;
+                          }
+                        });
+                      },
+                      items: _wallets
+                          .where((w) => w.id != _destinationWallet?.id)
+                          .toList(),
                     ),
                     const SizedBox(height: 20),
                     _buildWalletDropdown(
                       label: "Ke Dompet",
                       value: _destinationWallet,
-                      onChanged: (wallet) =>
-                          setState(() => _destinationWallet = wallet),
+                      onChanged: (wallet) {
+                        setState(() {
+                          _destinationWallet = wallet;
+                          // Jika dompet sumber sama dengan dompet tujuan, reset sumber
+                          if (_sourceWallet != null && _sourceWallet!.id == wallet?.id) {
+                            _sourceWallet = null;
+                          }
+                        });
+                      },
                       items: _wallets
                           .where((w) => w.id != _sourceWallet?.id)
                           .toList(),

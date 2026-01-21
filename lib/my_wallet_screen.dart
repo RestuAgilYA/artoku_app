@@ -1,4 +1,6 @@
-import 'package:artoku_app/transfer_history_tab.dart';
+import 'package:artoku_app/transfer_fund_dialog.dart';
+import 'package:artoku_app/transfer_history_tab.dart' hide TransferFundDialog;
+import 'package:artoku_app/wallet_data.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:artoku_app/services/ui_helper.dart';
 
-// Formatter for thousand separators
 class ThousandsFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -15,7 +16,6 @@ class ThousandsFormatter extends TextInputFormatter {
     if (newValue.text.isEmpty) {
       return newValue.copyWith(text: '');
     }
-
 
     String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
 
@@ -183,11 +183,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     return _presetColors[0];
   }
 
-  void _showTransferForm() {
+  void _showTransferForm({TransferModel? transfer}) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return TransferFundDialog();
+        return TransferFundDialog(transfer: transfer);
       },
     );
   }
@@ -214,7 +214,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.swap_horiz, color: textColor),
-            onPressed: _showTransferForm,
+            onPressed: () => _showTransferForm(),
           ),
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: textColor),
@@ -229,7 +229,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           Expanded(
             child: _isWalletView
                 ? _buildWalletListTab(textColor)
-                : const TransferHistoryTab(),
+                : TransferHistoryTab(onEdit: _showTransferForm),
           ),
         ],
       ),

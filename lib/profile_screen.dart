@@ -15,6 +15,7 @@ import 'forgot_password_screen.dart';
 import 'about_screen.dart';
 import 'privacy_policy_screen.dart';
 import 'notification_service.dart';
+import 'app_lock_setup_page.dart';
 import 'package:artoku_app/services/ui_helper.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -31,6 +32,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isNotificationOn = false;
   bool _isLoadingPrefs = true;
 
+  // State App Lock
+  bool _isAppLockEnabled = false;
+  bool _isLoadingAppLock = true;
+
   final User? currentUser = FirebaseAuth.instance.currentUser;
   late Stream<DocumentSnapshot>? _userStream;
 
@@ -38,6 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadNotificationPreference();
+    _loadAppLockPreference();
 
     if (currentUser != null) {
       _userStream = FirebaseFirestore.instance
@@ -58,6 +64,530 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isLoadingPrefs = false;
       });
     }
+  }
+
+  // --- LOGIC APP LOCK ---
+  Future<void> _loadAppLockPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _isAppLockEnabled = prefs.getBool('appLockEnabled') ?? false;
+        _isLoadingAppLock = false;
+      });
+    }
+  }
+
+  Future<void> _handleAppLockToggle(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPin = prefs.containsKey('appLockPin');
+
+    if (value) {
+      // Tombol ON
+      if (!hasPin) {
+        // Pertama kali: minta setup PIN
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AppLockSetupPage(isChanging: false),
+          ),
+        );
+        
+        if (mounted) {
+          _loadAppLockPreference();
+        }
+      } else {
+        // Sudah ada PIN sebelumnya: langsung aktifkan
+        await prefs.setBool('appLockEnabled', true);
+        if (mounted) {
+          setState(() => _isAppLockEnabled = true);
+          UIHelper.showSuccess(
+            context,
+            "Kunci Aplikasi Diaktifkan",
+            "Aplikasi Anda sekarang dilindungi dengan PIN.",
+          );
+        }
+      }
+    } else {
+      // Tombol OFF: langsung nonaktifkan
+      await prefs.setBool('appLockEnabled', false);
+      if (mounted) {
+        setState(() => _isAppLockEnabled = false);
+        UIHelper.showSuccess(
+          context,
+          "Kunci Aplikasi Dinonaktifkan",
+          "Aplikasi Anda tidak lagi dikunci dengan PIN.",
+        );
+      }
+    }
+  }
+
+  void _showAppLockMenu() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPin = prefs.containsKey('appLockPin');
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Theme.of(context).cardColor,
+        title: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.lock,
+                  color: primaryColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 15),
+              const Text(
+                "Kelola Kunci Aplikasi",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasPin)
+              _buildAppLockMenuOption(
+                icon: Icons.edit_note,
+                title: "Ubah PIN",
+                subtitle: "Ganti dengan PIN baru",
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AppLockSetupPage(isChanging: true),
+                    ),
+                  );
+                },
+              ),
+            if (hasPin)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Divider(color: Colors.grey.withOpacity(0.3)),
+              ),
+            _buildAppLockMenuOption(
+              icon: Icons.lock_reset,
+              title: "Lupa PIN",
+              subtitle: "Reset PIN dengan password login",
+              onTap: () {
+                Navigator.pop(context);
+                _showForgotPinDialog();
+              },
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Divider(color: Colors.grey.withOpacity(0.3)),
+            ),
+            _buildAppLockMenuOption(
+              icon: Icons.info_outline,
+              title: "Cara Kerja",
+              subtitle: "Pelajari tentang fitur ini",
+              onTap: () {
+                Navigator.pop(context);
+                _showAppLockInfoDialog();
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Tutup"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAppLockMenuOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: primaryColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 14,
+              color: Colors.grey[400],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showForgotPinDialog() async {
+    final passwordController = TextEditingController();
+    bool isLoading = false;
+    bool obscureText = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              backgroundColor: Theme.of(context).cardColor,
+              title: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.lock_reset,
+                        color: primaryColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        "Reset PIN",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Untuk keamanan, masukkan password login Anda untuk mereset PIN aplikasi.",
+                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Password Login",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: obscureText,
+                    enabled: !isLoading,
+                    decoration: InputDecoration(
+                      labelText: "Masukkan password login",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Colors.grey.withOpacity(0.3),
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF0F4C5C),
+                          width: 2,
+                        ),
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureText ? Icons.visibility_off : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            obscureText = !obscureText;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: isLoading
+                            ? null
+                            : () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const ForgotPasswordScreen(),
+                                  ),
+                                );
+                              },
+                        child: const Text(
+                          "Lupa Password?",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: CircularProgressIndicator(),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.pop(context),
+                  child: const Text("Batal"),
+                ),
+                ElevatedButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          if (passwordController.text.isEmpty) {
+                            UIHelper.showError(context, "Password tidak boleh kosong!");
+                            return;
+                          }
+
+                          setState(() {
+                            isLoading = true;
+                          });
+
+                          try {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user == null || user.email == null) {
+                              if (mounted) {
+                                UIHelper.showError(context, "User tidak ditemukan!");
+                              }
+                              return;
+                            }
+
+                            // Verifikasi password
+                            final credential = EmailAuthProvider.credential(
+                              email: user.email!,
+                              password: passwordController.text.trim(),
+                            );
+
+                            await user.reauthenticateWithCredential(credential);
+
+                            // Reset PIN lama
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.remove('appLockPin');
+                            await prefs.setBool('appLockEnabled', false);
+
+                            if (mounted) {
+                              Navigator.pop(context); // Tutup dialog password
+
+                              // Buka halaman Buat PIN Baru
+                              await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const AppLockSetupPage(
+                                    isChanging: false,
+                                    forceSetupFlow: true,
+                                  ),
+                                ),
+                              );
+
+                              // Setelah kembali dari AppLockSetupPage (yang sekarang sudah benar-benar tertutup)
+                              // Kita update tampilan switch di Profile
+                              if (mounted) {
+                                _loadAppLockPreference();
+                              }
+                            }
+                          } on FirebaseAuthException catch (e) {
+                            String message = "Terjadi kesalahan.";
+                            if (e.code == 'wrong-password' ||
+                                e.code == 'invalid-credential') {
+                              message = "Password login salah. Coba lagi!";
+                            } else if (e.code == 'user-not-found') {
+                              message = "User tidak ditemukan.";
+                            }
+
+                            if (mounted) {
+                              UIHelper.showError(context, message);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              UIHelper.showError(context, "Gagal: $e");
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                isLoading = false;
+                              });
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryColor,
+                    disabledBackgroundColor: primaryColor.withOpacity(0.5),
+                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : const Text("Reset & Buat Baru"),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAppLockInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Theme.of(context).cardColor,
+        title: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.help_outline,
+                  color: primaryColor,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 15),
+              const Expanded(
+                child: Text(
+                  "Tentang Kunci Aplikasi",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoSection(
+                title: "Apa itu Kunci Aplikasi?",
+                content: "Fitur keamanan yang melindungi data Anda dengan PIN 6 digit. Ketika membuka aplikasi, Anda harus memasukkan PIN untuk mengakses.",
+              ),
+              const SizedBox(height: 16),
+              _buildInfoSection(
+                title: "Kapan PIN Diminta?",
+                content: "• Ketika membuka aplikasi setelah menutupnya\n• Saat aplikasi berjalan di background lebih dari 30 detik",
+              ),
+              const SizedBox(height: 16),
+              _buildInfoSection(
+                title: "Tips Keamanan",
+                content: "• Gunakan PIN yang mudah diingat namun kuat\n• Jangan bagikan PIN ke siapa pun\n• Ubah PIN secara berkala\n• Jangan gunakan PIN yang sama dengan password login",
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Mengerti"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoSection({
+    required String title,
+    required String content,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            color: Color(0xFF0F4C5C),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          content,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[700],
+            height: 1.5,
+          ),
+        ),
+      ],
+    );
   }
 
   void _handleNotificationToggle(bool value) async {
@@ -375,6 +905,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
               setState(() {});
             }),
             _buildDivider(),
+            _buildSwitchItem(
+              Icons.lock_outline,
+              "Kunci Aplikasi",
+              _isAppLockEnabled,
+              _handleAppLockToggle,
+            ),
+            if (_isAppLockEnabled)
+              Column(
+                children: [
+                  _buildDivider(),
+                  _buildMenuItem(
+                    Icons.security,
+                    "Kelola PIN",
+                    () => _showAppLockMenu(),
+                  ),
+                ],
+              ),
+            _buildDivider(),
             _buildMenuItem(Icons.language, "Bahasa", () {
               _showLanguageDialog();
             }),
@@ -456,6 +1004,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     bool value,
     Function(bool) onChanged,
   ) {
+    bool isLoadingItem = _isLoadingPrefs;
+    if (icon == Icons.lock_outline) {
+      isLoadingItem = _isLoadingAppLock;
+    }
+
     return ListTile(
       leading: Container(
         padding: const EdgeInsets.all(8),
@@ -469,7 +1022,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title,
         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       ),
-      trailing: _isLoadingPrefs
+      trailing: isLoadingItem
           ? const SizedBox(
               width: 20,
               height: 20,

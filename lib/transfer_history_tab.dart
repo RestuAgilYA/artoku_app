@@ -1,27 +1,16 @@
+import 'package:artoku_app/detail_transfer_screen.dart';
 import 'package:artoku_app/services/ui_helper.dart';
+import 'package:artoku_app/transfer_fund_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'wallet_data.dart';
-import 'my_wallet_screen.dart';
 
 class TransferHistoryTab extends StatelessWidget {
-  const TransferHistoryTab({super.key});
+  final Function({TransferModel transfer}) onEdit;
 
-  void _showDetailTransfer(BuildContext context, TransferModel transfer) {
-    showDialog(
-      context: context,
-      builder: (context) => DetailTransferDialog(transfer: transfer),
-    );
-  }
-
-  void _showEditTransferPopup(BuildContext context, TransferModel transfer) {
-    showDialog(
-      context: context,
-      builder: (context) => TransferFundDialog(transfer: transfer),
-    );
-  }
+  const TransferHistoryTab({super.key, required this.onEdit});
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +58,10 @@ class TransferHistoryTab extends StatelessWidget {
               key: Key(transfer.id),
               confirmDismiss: (direction) async {
                 if (direction == DismissDirection.startToEnd) { // Geser ke kanan (Edit)
-                  _showEditTransferPopup(context, transfer);
+                  showDialog(
+                    context: context,
+                    builder: (context) => TransferFundDialog(transfer: transfer),
+                  );
                   return false; // Jangan hapus item
                 } else { // Geser ke kiri (Hapus)
                   return await showDialog(
@@ -160,7 +152,14 @@ class TransferHistoryTab extends StatelessWidget {
                   borderRadius: BorderRadius.circular(15),
                 ),
                 child: InkWell(
-                  onTap: () => _showDetailTransfer(context, transfer),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => DetailTransferScreen(transfer: transfer),
+                      ),
+                    );
+                  },
                   child: Padding(
                     padding: const EdgeInsets.all(15.0),
                     child: Row(
