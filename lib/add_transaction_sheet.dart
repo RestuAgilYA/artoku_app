@@ -4,6 +4,36 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:artoku_app/services/logger_service.dart';
+import 'package:intl/intl.dart';
+
+// Custom Formatter
+class ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  static const separator = '.'; // Separator for thousands
+
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+    // Get the numeric value
+    String newText = newValue.text.replaceAll(separator, '');
+
+    if (int.tryParse(newText) == null) {
+      return oldValue;
+    }
+
+    final formatter = NumberFormat('#,###');
+    String newFormattedText = formatter.format(int.parse(newText)).replaceAll(',', separator);
+
+    return newValue.copyWith(
+      text: newFormattedText,
+      selection: TextSelection.collapsed(offset: newFormattedText.length),
+    );
+  }
+}
+
 
 class AddTransactionSheet extends StatefulWidget {
   // Tambahkan parameter ini untuk menerima hasil analisa Gemini
@@ -96,7 +126,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       // 5. Nominal
       double amount = (data['amount'] ?? 0).toDouble();
       if (amount > 0) {
-        _amountController.text = amount.toInt().toString();
+        final formatter = NumberFormat('#,###');
+        _amountController.text = formatter.format(amount.toInt()).replaceAll(',', '.');
       }
 
       // 6. Tanggal
@@ -697,8 +728,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             Text("Nominal", style: TextStyle(color: hintColor, fontSize: 12)),
             TextField(
               controller: _amountController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              keyboardType: const TextInputType.numberWithOptions(decimal: false),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                ThousandsSeparatorInputFormatter(),
+              ],
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,

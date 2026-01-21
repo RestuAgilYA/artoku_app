@@ -59,6 +59,7 @@ dependencies:
   logger: ^2.0.0          # Untuk Error Logging yang rapi
   fluttertoast: ^8.2.4
   url_launcher: ^6.1.10
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:

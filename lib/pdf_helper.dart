@@ -7,26 +7,23 @@ class PdfHelper {
   // Fungsi utama untuk generate dan print PDF
   static Future<void> generateMonthlyReport(
     DateTime selectedMonth,
-    List<QueryDocumentSnapshot> docs,
+    List<QueryDocumentSnapshot> transactionDocs,
+    List<QueryDocumentSnapshot> transferDocs,
   ) async {
     final pdf = pw.Document();
 
-    // 1. Hitung Ringkasan Data
+    // 1. Hitung Ringkasan Data Transaksi
     double totalIncome = 0;
     double totalExpense = 0;
 
-    // Filter data agar hanya mengambil transaksi di bulan yang dipilih
-    final transactions = docs.where((doc) {
+    final transactions = transactionDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
-      // Pastikan ada tanggalnya
       if (data['date'] == null) return false;
-
       final date = (data['date'] as Timestamp).toDate();
       return date.year == selectedMonth.year &&
           date.month == selectedMonth.month;
     }).toList();
 
-    // Urutkan berdasarkan tanggal (Terbaru di atas)
     transactions.sort((a, b) {
       final dateA = (a.data() as Map<String, dynamic>)['date'] as Timestamp;
       final dateB = (b.data() as Map<String, dynamic>)['date'] as Timestamp;
@@ -36,16 +33,31 @@ class PdfHelper {
     for (var doc in transactions) {
       final data = doc.data() as Map<String, dynamic>;
       final amount = (data['amount'] ?? 0).toDouble();
-      final type = data['type'];
-
-      if (type == 'income') {
+      if (data['type'] == 'income') {
         totalIncome += amount;
       } else {
         totalExpense += amount;
       }
     }
 
-    // 2. Desain Halaman PDF
+    // 2. Filter & Urutkan Riwayat Transfer
+    final transfers = transferDocs.where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['timestamp'] == null) return false;
+      final date = (data['timestamp'] as Timestamp).toDate();
+      return date.year == selectedMonth.year &&
+          date.month == selectedMonth.month;
+    }).toList();
+
+    transfers.sort((a, b) {
+      final dateA =
+          (a.data() as Map<String, dynamic>)['timestamp'] as Timestamp;
+      final dateB =
+          (b.data() as Map<String, dynamic>)['timestamp'] as Timestamp;
+      return dateB.compareTo(dateA);
+    });
+
+    // 3. Desain Halaman PDF
     pdf.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
@@ -58,24 +70,15 @@ class PdfHelper {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text(
-                    'Laporan Keuangan',
-                    style: pw.TextStyle(
-                      fontSize: 24,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                  pw.Text(
-                    'ArtoKu App',
-                    style: const pw.TextStyle(
-                      fontSize: 16,
-                      color: PdfColors.grey,
-                    ),
-                  ),
+                  pw.Text('Laporan Keuangan',
+                      style: pw.TextStyle(
+                          fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('ArtoKu App',
+                      style: const pw.TextStyle(
+                          fontSize: 16, color: PdfColors.grey)),
                 ],
               ),
             ),
-
             pw.SizedBox(height: 20),
 
             // INFO BULAN & RINGKASAN
@@ -85,7 +88,6 @@ class PdfHelper {
             ),
             pw.SizedBox(height: 10),
 
-            // Kotak Ringkasan
             pw.Container(
               padding: const pw.EdgeInsets.all(10),
               decoration: pw.BoxDecoration(
@@ -96,7 +98,8 @@ class PdfHelper {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                 children: [
                   _buildSummaryItem("Pemasukan", totalIncome, PdfColors.green),
-                  _buildSummaryItem("Pengeluaran", totalExpense, PdfColors.red),
+                  _buildSummaryItem(
+                      "Pengeluaran", totalExpense, PdfColors.red),
                   _buildSummaryItem(
                     "Sisa Saldo",
                     totalIncome - totalExpense,
@@ -107,7 +110,6 @@ class PdfHelper {
                 ],
               ),
             ),
-
             pw.SizedBox(height: 30),
 
             // TABEL TRANSAKSI
@@ -116,56 +118,96 @@ class PdfHelper {
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
-
             pw.Table.fromTextArray(
               headers: ['Tanggal', 'Kategori', 'Catatan', 'Nominal'],
-              data: transactions.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
-                final date = (data['date'] as Timestamp).toDate();
-                final type = data['type'] ?? 'expense';
-                final amount = (data['amount'] ?? 0).toDouble();
-                final prefix = type == 'income' ? '+ ' : '- ';
-
-                return [
-                  "${date.day}/${date.month}/${date.year}",
-                  data['category'] ?? '-',
-                  data['note'] ?? '-',
-                  "$prefix${_formatCurrency(amount)}",
-                ];
-              }).toList(),
+              data: transactions.isEmpty
+                  ? [
+                      ['Tidak ada data transaksi bulan ini.', '', '', '']
+                    ]
+                  : transactions.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final date = (data['date'] as Timestamp).toDate();
+                      final type = data['type'] ?? 'expense';
+                      final amount = (data['amount'] ?? 0).toDouble();
+                      final prefix = type == 'income' ? '+ ' : '- ';
+                      return [
+                        "${date.day}/${date.month}/${date.year}",
+                        data['category'] ?? '-',
+                        data['note'] ?? '-',
+                        "$prefix${_formatCurrency(amount)}",
+                      ];
+                    }).toList(),
               border: null,
               headerStyle: pw.TextStyle(
-                fontWeight: pw.FontWeight.bold,
-                color: PdfColors.white,
-              ),
-              headerDecoration: const pw.BoxDecoration(
-                color: PdfColor.fromInt(0xFF0F4C5C),
-              ),
+                  fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColor.fromInt(0xFF0F4C5C)),
               rowDecoration: const pw.BoxDecoration(
-                border: pw.Border(
-                  bottom: pw.BorderSide(color: PdfColors.grey300),
-                ),
-              ),
+                  border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.grey300))),
               cellAlignment: pw.Alignment.centerLeft,
               cellAlignments: {
                 0: pw.Alignment.center,
-                3: pw.Alignment.centerRight, // Kolom Nominal Rata Kanan
+                3: pw.Alignment.centerRight
               },
             ),
+            pw.SizedBox(height: 30),
 
-            pw.SizedBox(height: 20),
-            pw.Footer(
-              leading: pw.Text(
-                "Dicetak pada ${DateTime.now().toString().split('.')[0]}",
-              ),
-              trailing: pw.Text("Halaman 1"),
+            // TABEL RIWAYAT TRANSFER
+            pw.Text(
+              "Riwayat Transfer Saldo",
+              style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 10),
+            pw.Table.fromTextArray(
+              headers: ['Tanggal', 'Dari Dompet', 'Ke Dompet', 'Jumlah'],
+              data: transfers.isEmpty
+                  ? [
+                      ['Tidak ada riwayat transfer bulan ini.', '', '', '']
+                    ]
+                  : transfers.map((doc) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final date = (data['timestamp'] as Timestamp).toDate();
+                      final amount = (data['amount'] ?? 0).toDouble();
+                      return [
+                        "${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute}",
+                        data['sourceWalletName'] ?? '-',
+                        data['destinationWalletName'] ?? '-',
+                        _formatCurrency(amount),
+                      ];
+                    }).toList(),
+              border: null,
+              headerStyle: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+              headerDecoration:
+                  const pw.BoxDecoration(color: PdfColor.fromInt(0xFF00897B)), // Warna beda
+              rowDecoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.grey300))),
+              cellAlignment: pw.Alignment.centerLeft,
+              cellAlignments: {
+                0: pw.Alignment.center,
+                3: pw.Alignment.centerRight
+              },
             ),
           ];
+        },
+        footer: (pw.Context context) {
+          return pw.Container(
+            alignment: pw.Alignment.centerRight,
+            margin: const pw.EdgeInsets.only(top: 1.0 * PdfPageFormat.cm),
+            child: pw.Text(
+              'Halaman ${context.pageNumber} dari ${context.pagesCount}',
+              style: pw.Theme.of(context)
+                  .defaultTextStyle
+                  .copyWith(color: PdfColors.grey),
+            ),
+          );
         },
       ),
     );
 
-    // 3. Tampilkan Preview / Print
+    // 4. Tampilkan Preview / Print
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name:

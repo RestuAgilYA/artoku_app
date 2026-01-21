@@ -1,7 +1,37 @@
+import 'package:artoku_app/transfer_history_tab.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+
+// Formatter for thousand separators
+class ThousandsFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return newValue.copyWith(text: '');
+    }
+
+
+    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (newText.isEmpty) {
+      return const TextEditingValue();
+    }
+
+    final number = int.parse(newText);
+    final formatter = NumberFormat('#,###', 'id_ID');
+    String formattedText = formatter.format(number);
+
+    return TextEditingValue(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
 
 class MyWalletScreen extends StatefulWidget {
   const MyWalletScreen({super.key});
@@ -12,6 +42,8 @@ class MyWalletScreen extends StatefulWidget {
 
 class _MyWalletScreenState extends State<MyWalletScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
+  bool _isWalletView = true;
+  final Color primaryColor = const Color(0xFF0F4C5C);
 
   final List<Color> _presetColors = [
     const Color(0xFF0F4C5C),
@@ -24,58 +56,72 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     const Color(0xFF757575),
   ];
 
-  // Helper Form (Sama, ditambah checkbox Locked nanti jika perlu di form edit, tapi kita pakai icon di list aja biar cepat)
   void _showWalletForm({DocumentSnapshot? document}) {
-    // ... (Copy Logic Form Anda sebelumnya di sini) ...
-    // Saya singkat:
-    TextEditingController nameController = TextEditingController(
-      text: document?['name'],
+    final nameController = TextEditingController(
+      text: document != null ? document['name'] : '',
     );
-    TextEditingController balanceController = TextEditingController(
-      text: document?['balance'].toString(),
+    final balanceController = TextEditingController(
+      text: document != null
+          ? NumberFormat('#,###', 'id_ID')
+              .format((document['balance'] as num).toInt())
+          : '',
     );
-    Color selectedColor = document != null
-        ? Color(document['color'])
-        : _presetColors[0];
+    Color selectedColor =
+        document != null ? Color(document['color']) : _presetColors[0];
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        title: Text(document == null ? "Tambah Dompet" : "Edit Dompet"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(labelText: "Nama"),
+              decoration: const InputDecoration(labelText: "Nama Dompet"),
             ),
+            const SizedBox(height: 10),
             TextField(
               controller: balanceController,
-              decoration: const InputDecoration(labelText: "Saldo"),
+              keyboardType: TextInputType.number,
+              inputFormatters: [ThousandsFormatter()],
+              decoration: const InputDecoration(
+                labelText: "Saldo Awal",
+                prefixText: 'Rp ',
+              ),
             ),
-            // Color picker...
+            // Color picker can be added here
           ],
         ),
         actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              // Logic Save
               final walletRef = FirebaseFirestore.instance
                   .collection('users')
                   .doc(user!.uid)
                   .collection('wallets');
+
+              final balance = double.tryParse(
+                      balanceController.text.replaceAll('.', '')) ??
+                  0;
+
               Map<String, dynamic> data = {
                 'name': nameController.text,
-                'balance': double.tryParse(balanceController.text) ?? 0,
+                'balance': balance,
                 'color': selectedColor.value,
-                'isLocked':
-                    document?['isLocked'] ?? false, // Pertahankan status lock
-                'createdAt':
-                    FieldValue.serverTimestamp(), // Untuk sort fallback
+                'isLocked': document != null ? document['isLocked'] : false,
+                'createdAt': FieldValue.serverTimestamp(),
               };
-              if (document == null)
+
+              if (document == null) {
                 await walletRef.add(data);
-              else
+              } else {
                 await walletRef.doc(document.id).update(data);
+              }
               Navigator.pop(context);
             },
             child: const Text("Simpan"),
@@ -85,39 +131,14 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     );
   }
 
-  // FITUR 2: Toggle Lock
-  void _toggleLock(String walletId, bool currentStatus) async {
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('wallets')
-        .doc(walletId)
-        .update({'isLocked': !currentStatus});
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          !currentStatus
-              ? "Dompet disembunyikan dari transaksi"
-              : "Dompet aktif kembali",
-        ),
-        duration: const Duration(seconds: 1),
-      ),
+  void _showTransferForm() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return TransferFundDialog();
+      },
     );
   }
-
-  void _deleteWallet(String walletId) {
-    // Logic delete lama
-    FirebaseFirestore.instance
-        .collection('users')
-        .doc(user!.uid)
-        .collection('wallets')
-        .doc(walletId)
-        .delete();
-  }
-
-  String _formatRupiah(num number) =>
-      "Rp ${number.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
 
   @override
   Widget build(BuildContext context) {
@@ -140,200 +161,290 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         ),
         actions: [
           IconButton(
+            icon: Icon(Icons.swap_horiz, color: textColor),
+            onPressed: _showTransferForm,
+          ),
+          IconButton(
             icon: Icon(Icons.add_circle_outline, color: textColor),
             onPressed: () => _showWalletForm(document: null),
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        // FITUR 3: Sorting Balance (High to Low)
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user?.uid)
-            .collection('wallets')
-            .orderBy('balance', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
-            return const Center(child: CircularProgressIndicator());
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
-            return Center(
-              child: Text(
-                "Belum ada dompet.",
-                style: TextStyle(color: textColor),
-              ),
-            );
+      body: Column(
+        children: [
+          _buildToggleSwitch(Theme.of(context).cardColor, isDark),
+          const SizedBox(height: 20),
+          Expanded(
+            child: _isWalletView
+                ? _buildWalletListTab(textColor)
+                : const TransferHistoryTab(),
+          ),
+        ],
+      ),
+    );
+  }
 
-          var wallets = snapshot.data!.docs;
-          double totalAssets = 0;
-          List<Map<String, dynamic>> chartData = [];
+  Widget _buildToggleSwitch(Color cardColor, bool isDark) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          _toggleButton("Dompet", _isWalletView),
+          _toggleButton("Riwayat Transfer", !_isWalletView),
+        ],
+      ),
+    );
+  }
 
-          for (var doc in wallets) {
-            var data = doc.data() as Map<String, dynamic>;
-            double bal = (data['balance'] ?? 0).toDouble();
-            // Chart hanya tampilkan yang visible (tidak di-lock) & > 0?
-            // Biasanya Aset tetap dihitung meski di lock, tapi opsional.
-            // Kita hitung semua aset real.
-            if (bal > 0) {
-              totalAssets += bal;
-              chartData.add({
-                'name': data['name'],
-                'value': bal,
-                'color': Color(data['color'] ?? 0xFF0F4C5C),
-              });
-            }
+  Widget _toggleButton(String title, bool isActive) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _isWalletView = title == "Dompet"),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isActive ? primaryColor : Colors.transparent,
+            borderRadius: BorderRadius.circular(25),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            title,
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.grey,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWalletListTab(Color textColor) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .collection('wallets')
+          .orderBy('balance', descending: true)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(
+            child: Text(
+              "Belum ada dompet.",
+              style: TextStyle(color: textColor),
+            ),
+          );
+        }
+
+        var wallets = snapshot.data!.docs;
+        double totalAssets = 0;
+        List<Map<String, dynamic>> chartData = [];
+
+        for (var doc in wallets) {
+          var data = doc.data() as Map<String, dynamic>;
+          double bal = (data['balance'] ?? 0).toDouble();
+          if (bal > 0) {
+            totalAssets += bal;
+            chartData.add({
+              'name': data['name'],
+              'value': bal,
+              'color': Color(data['color'] ?? 0xFF0F4C5C),
+            });
           }
+        }
 
-          return Column(
-            children: [
-              // FITUR 1: CHART FLICKER FIX (Extract Widget)
-              if (totalAssets > 0)
-                SizedBox(
-                  height: 220,
-                  child: _WalletPieChart(
-                    totalAssets: totalAssets,
-                    chartData: chartData,
-                    textColor: textColor,
-                  ),
+        return Column(
+          children: [
+            if (totalAssets > 0)
+              SizedBox(
+                height: 220,
+                child: _WalletPieChart(
+                  totalAssets: totalAssets,
+                  chartData: chartData,
+                  textColor: textColor,
                 ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: wallets.length,
+                itemBuilder: (context, index) {
+                  var wallet = wallets[index];
+                  var data = wallet.data() as Map<String, dynamic>;
+                  Color walletColor = Color(data['color'] ?? 0xFF0F4C5C);
+                  double balance = (data['balance'] ?? 0).toDouble();
+                  bool isLocked = data['isLocked'] ?? false;
 
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  itemCount: wallets.length,
-                  itemBuilder: (context, index) {
-                    var wallet = wallets[index];
-                    var data = wallet.data() as Map<String, dynamic>;
-                    Color walletColor = Color(data['color'] ?? 0xFF0F4C5C);
-                    double balance = (data['balance'] ?? 0).toDouble();
-                    bool isLocked = data['isLocked'] ?? false;
+                  double percentage =
+                      totalAssets > 0 ? (balance / totalAssets) : 0;
+                  if (percentage < 0) percentage = 0;
 
-                    double percentage = totalAssets > 0
-                        ? (balance / totalAssets)
-                        : 0;
-                    if (percentage < 0) percentage = 0;
-
-                    return Opacity(
-                      opacity: isLocked
-                          ? 0.6
-                          : 1.0, // Visual feedback kalau locked
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 15),
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).cardColor,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                  return Opacity(
+                    opacity: isLocked ? 0.6 : 1.0,
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 15),
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: walletColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
                             ),
-                          ],
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(
-                                color: walletColor.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                isLocked
-                                    ? Icons.lock
-                                    : Icons.account_balance_wallet,
-                                color: walletColor,
-                                size: 20,
-                              ),
+                            child: Icon(
+                              isLocked
+                                  ? Icons.lock
+                                  : Icons.account_balance_wallet,
+                              color: walletColor,
+                              size: 20,
                             ),
-                            const SizedBox(width: 15),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data['name'],
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: textColor,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 5),
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: LinearProgressIndicator(
-                                      value: percentage,
-                                      backgroundColor: Colors.grey.shade200,
-                                      color: walletColor,
-                                      minHeight: 4,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                          ),
+                          const SizedBox(width: 15),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _formatRupiah(balance),
+                                  data['name'],
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                     color: textColor,
                                   ),
                                 ),
-                                Row(
-                                  children: [
-                                    // FITUR 2: Lock Button
-                                    GestureDetector(
-                                      onTap: () =>
-                                          _toggleLock(wallet.id, isLocked),
-                                      child: Icon(
-                                        isLocked
-                                            ? Icons.lock_open
-                                            : Icons.lock_outline,
-                                        size: 18,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    GestureDetector(
-                                      onTap: () =>
-                                          _showWalletForm(document: wallet),
-                                      child: Icon(
-                                        Icons.edit,
-                                        size: 18,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    GestureDetector(
-                                      onTap: () => _deleteWallet(wallet.id),
-                                      child: Icon(
-                                        Icons.delete,
-                                        size: 18,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                    ),
-                                  ],
+                                const SizedBox(height: 5),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: percentage,
+                                    backgroundColor: Colors.grey.shade200,
+                                    color: walletColor,
+                                    minHeight: 4,
+                                  ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                _formatRupiah(balance),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: textColor,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _toggleLock(wallet.id, isLocked),
+                                    child: Icon(
+                                      isLocked
+                                          ? Icons.lock_open
+                                          : Icons.lock_outline,
+                                      size: 18,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _showWalletForm(document: wallet),
+                                    child: Icon(
+                                      Icons.edit,
+                                      size: 18,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  GestureDetector(
+                                    onTap: () => _deleteWallet(wallet.id),
+                                    child: Icon(
+                                      Icons.delete,
+                                      size: 18,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _toggleLock(String walletId, bool currentStatus) async {
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('wallets')
+        .doc(walletId)
+        .update({'isLocked': !currentStatus});
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          !currentStatus
+              ? "Dompet disembunyikan dari transaksi"
+              : "Dompet aktif kembali",
+        ),
+        duration: const Duration(seconds: 1),
       ),
     );
   }
+
+  void _deleteWallet(String walletId) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('wallets')
+        .doc(walletId)
+        .delete();
+  }
+
+  String _formatRupiah(num number) =>
+      "Rp ${NumberFormat('#,###', 'id_ID').format(number)}";
 }
 
 // WIDGET TERPISAH UNTUK CHART (MENCEGAH FLICKER)
@@ -356,7 +467,7 @@ class _WalletPieChartState extends State<_WalletPieChart> {
   int _touchedIndex = -1;
 
   String _formatRupiah(num number) {
-    return "Rp ${number.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+    return "Rp ${NumberFormat('#,###', 'id_ID').format(number)}";
   }
 
   @override
@@ -368,7 +479,6 @@ class _WalletPieChartState extends State<_WalletPieChart> {
           PieChartData(
             pieTouchData: PieTouchData(
               touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                // setState di sini HANYA me-rebuild _WalletPieChart, bukan seluruh Screen/StreamBuilder
                 setState(() {
                   if (!event.isInterestedForInteractions ||
                       pieTouchResponse == null ||
@@ -383,18 +493,19 @@ class _WalletPieChartState extends State<_WalletPieChart> {
             ),
             borderData: FlBorderData(show: false),
             sectionsSpace: 2,
-            centerSpaceRadius: 40,
+            centerSpaceRadius: 50,
             sections: List.generate(widget.chartData.length, (i) {
               final isTouched = i == _touchedIndex;
-              final fontSize = isTouched ? 16.0 : 10.0;
-              final radius = isTouched ? 50.0 : 40.0;
+              final fontSize = isTouched ? 16.0 : 12.0;
+              final radius = isTouched ? 60.0 : 50.0;
               double val = widget.chartData[i]['value'];
 
               return PieChartSectionData(
                 color: widget.chartData[i]['color'],
                 value: val,
-                title:
-                    '${((val / widget.totalAssets) * 100).toStringAsFixed(0)}%',
+                title: isTouched
+                    ? _formatRupiah(val)
+                    : '${((val / widget.totalAssets) * 100).toStringAsFixed(0)}%',
                 radius: radius,
                 titleStyle: TextStyle(
                   fontSize: fontSize,

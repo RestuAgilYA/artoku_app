@@ -24,27 +24,43 @@ class _ReportScreenState extends State<ReportScreen> {
     setState(() => _isExporting = true);
 
     try {
-      final snapshot = await FirebaseFirestore.instance
+      // 1. Fetch both collections in parallel
+      final transactionFuture = FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
           .collection('transactions')
           .get();
+      final transferFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transfers')
+          .get();
+
+      final results =
+          await Future.wait([transactionFuture, transferFuture]);
+      final transactionSnapshot = results[0] as QuerySnapshot;
+      final transferSnapshot = results[1] as QuerySnapshot;
 
       if (!mounted) return;
 
-      if (snapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text("Tidak ada data.")));
+      // 2. Check if there is any data at all
+      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
         setState(() => _isExporting = false);
         return;
       }
-      await PdfHelper.generateMonthlyReport(_selectedMonth, snapshot.docs);
+
+      // 3. Call the updated PDF helper
+      await PdfHelper.generateMonthlyReport(
+        _selectedMonth,
+        transactionSnapshot.docs,
+        transferSnapshot.docs,
+      );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error: $e")));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Gagal mengekspor PDF: $e")));
       }
     } finally {
       if (mounted) {
