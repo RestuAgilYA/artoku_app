@@ -506,7 +506,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Hapus Dompet"),
+          title: const Text("Hapus Dompet?"),
           content: const Text(
             "Apakah Anda yakin ingin menghapus dompet ini? Tindakan ini tidak dapat dibatalkan.",
           ),

@@ -64,21 +64,63 @@ class TransferHistoryTab extends StatelessWidget {
                   );
                   return false; // Jangan hapus item
                 } else { // Geser ke kiri (Hapus)
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  final Color messageColor = isDark ? Colors.white70 : Colors.black87;
                   return await showDialog(
                     context: context,
+                    barrierDismissible: false,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: const Text("Konfirmasi Hapus"),
-                        content: const Text(
-                            "Anda yakin ingin menghapus riwayat transfer ini? Saldo akan dikembalikan."),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.red,
+                                size: 48,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              "Hapus Transfer?",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "Tindakan ini tidak dapat dibatalkan. Data transfer dan perubahan saldo akan dikembalikan.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 15, color: messageColor),
+                            ),
+                          ],
+                        ),
                         actions: <Widget>[
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text("Batal"),
+                            child: const Text(
+                              "Batal",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                            child: const Text(
+                              "Hapus",
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ],
                       );

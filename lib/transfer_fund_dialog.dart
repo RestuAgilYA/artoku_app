@@ -170,6 +170,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             'destinationWalletName': _destinationWallet!.name,
             'amount': amount,
             'timestamp': FieldValue.serverTimestamp(),
+            'notes': _noteController.text.trim(),
           });
         } else {
           transferDocRef = usersRef.collection('transfers').doc();
@@ -180,6 +181,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             'destinationWalletName': _destinationWallet!.name,
             'amount': amount,
             'timestamp': FieldValue.serverTimestamp(),
+            'notes': _noteController.text.trim(),
           });
         }
 

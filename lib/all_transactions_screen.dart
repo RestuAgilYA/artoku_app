@@ -349,22 +349,57 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             );
             return false;
           } else {
-            // HAPUS - DIALOG KONFIRMASI
-            return await showDialog(
+            // HAPUS - DIALOG KONFIRMASI (modern, theme-aware)
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+            return await showDialog<bool>(
               context: context,
-              builder: (context) => AlertDialog(
-                title: const Text("Hapus Transaksi?"),
-                content: const Text("Saldo akan disesuaikan kembali."),
+              barrierDismissible: false,
+              builder: (ctx) => AlertDialog(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.red.shade900.withOpacity(0.15) : Colors.red.shade50,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.warning_amber_rounded, color: Colors.red.shade400, size: 38),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      "Hapus Transaksi?",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "Tindakan ini tidak dapat dibatalkan. Saldo dompet akan dikembalikan sesuai transaksi.",
+                      style: TextStyle(fontSize: 15, color: messageColor),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
                 actions: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text("Batal"),
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: const Text(
+                      "Batal",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.pop(context, true),
+                    onPressed: () => Navigator.pop(ctx, true),
                     child: const Text(
                       "Hapus",
-                      style: TextStyle(color: Colors.red),
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],

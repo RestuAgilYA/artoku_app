@@ -1057,18 +1057,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           onPressed: () {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+            final user = FirebaseAuth.instance.currentUser;
+            String? photoUrl = user?.photoURL;
+            ImageProvider imageProvider;
+            if (photoUrl != null && photoUrl.isNotEmpty) {
+              if (photoUrl.startsWith('http')) {
+                imageProvider = NetworkImage(photoUrl);
+              } else {
+                try {
+                  imageProvider = MemoryImage(base64Decode(photoUrl));
+                } catch (e) {
+                  imageProvider = const AssetImage('assets/images/welcome_image.png');
+                }
+              }
+            } else {
+              imageProvider = const AssetImage('assets/images/welcome_image.png');
+            }
             showDialog(
               context: context,
+              barrierDismissible: false,
               builder: (context) => AlertDialog(
-                title: const Text("Keluar Akun"),
-                content: const Text("Apakah Anda yakin ingin keluar?"),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: CircleAvatar(
+                        backgroundImage: imageProvider,
+                        radius: 32,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      "Keluar dari Akun?",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        color: isDark ? const Color.fromRGBO(244, 67, 54, 1) : const Color(0xFF0F4C5C),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      "Yakin mau keluar? Jangan lupa balik lagi, ya!",
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 15, color: messageColor),
+                    ),
+                  ],
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text("Batal"),
+                    child: const Text(
+                      "Batal",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   TextButton(
                     onPressed: () async {
+                      Navigator.pop(context);
                       await FirebaseAuth.instance.signOut();
                       if (context.mounted) {
                         Navigator.pushAndRemoveUntil(
@@ -1081,8 +1134,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     },
                     child: const Text(
-                      "Ya, Keluar",
-                      style: TextStyle(color: Colors.red),
+                      "Keluar",
+                      style: TextStyle(
+                        color: Color.fromRGBO(244, 67, 54, 1),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ],
@@ -1092,7 +1148,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: const Text(
             "Keluar",
             style: TextStyle(
-              color: Colors.redAccent,
+              color: Color.fromRGBO(255, 82, 82, 1),
               fontWeight: FontWeight.bold,
               fontSize: 16,
             ),
@@ -1110,7 +1166,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: const Text(
           "Hapus Akun",
           style: TextStyle(
-            color: Colors.red,
+            color: Color.fromRGBO(244, 67, 54, 1),
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -1120,24 +1176,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showDeleteConfirmationDialog() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color messageColor = isDark ? Colors.white70 : Colors.black87;
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text("Hapus Akun?"),
-        content: const Text(
-          "Tindakan ini tidak bisa dibatalkan. Semua data Anda, termasuk riwayat transaksi, akan dihapus secara permanen. Apakah Anda yakin?",
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Text(
+                "😢",
+                style: TextStyle(fontSize: 40),
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              "Hapus Akun?",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Color.fromRGBO(244, 67, 54, 1),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Yakin ingin menghapus akun? Kami akan sangat kehilangan kamu... Semua data dan riwayatmu akan hilang selamanya. 😭",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: messageColor),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Batal"),
+            child: const Text(
+              "Batal",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Close the first dialog
+              Navigator.pop(context);
               _showPasswordReauthenticationDialog();
             },
-            child: const Text("Ya, Hapus", style: TextStyle(color: Colors.red)),
+            child: const Text(
+              "Hapus Akun",
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),

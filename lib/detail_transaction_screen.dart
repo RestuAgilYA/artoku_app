@@ -185,27 +185,64 @@ class DetailTransactionScreen extends StatelessWidget {
   ) {
     if (docId == null) return;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color messageColor = isDark ? Colors.white70 : Colors.black87;
     showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text("Hapus?"),
-        // Tidak ada content, hanya title dan tombol
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 48,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              "Hapus Transaksi?",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Tindakan ini tidak dapat dibatalkan. Saldo dompet akan dikembalikan sesuai transaksi.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: messageColor),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text("Batal"),
+            child: const Text(
+              "Batal",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text(
               "Hapus",
-              style: TextStyle(color: Colors.red),
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
       ),
     ).then((confirmed) async {
       if (confirmed != true) return;

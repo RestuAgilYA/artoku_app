@@ -17,7 +17,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   Future<void> _sendResetLink() async {
     if (_emailController.text.isEmpty) {
-      // GANTI SNACKBAR DENGAN UIHELPER
       UIHelper.showError(context, "Harap isi email Anda!");
       return;
     }
@@ -45,7 +44,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: emailInput);
 
       if (mounted) {
-        // GANTI DIALOG MANUAL DENGAN UIHELPER (SUKSES)
         UIHelper.showSuccess(
           context,
           "Email Terkirim",
@@ -61,7 +59,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
 
       if (mounted) {
-        // GANTI DENGAN UIHELPER (ERROR)
         UIHelper.showError(context, message);
       }
     } catch (e) {

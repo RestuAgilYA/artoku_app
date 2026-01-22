@@ -11,6 +11,7 @@ import 'detail_transaction_screen.dart';
 import 'all_transactions_screen.dart';
 import 'my_wallet_screen.dart';
 import 'package:artoku_app/services/ai_transaction_helper.dart';
+import 'package:artoku_app/services/ui_helper.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -672,25 +673,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
             );
             return false;
           }
-          return await showDialog(
+          // Konfirmasi hapus swipe kiri - modern dialog
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+          final confirmed = await showDialog<bool>(
             context: context,
+            barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              title: const Text("Hapus?"),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    "Hapus Transaksi?",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Color.fromRGBO(183, 28, 28, 1),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Tindakan ini tidak dapat dibatalkan. Saldo dompet akan dikembalikan sesuai transaksi.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: messageColor),
+                  ),
+                ],
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text("Batal"),
+                  child: const Text(
+                    "Batal",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Text(
                     "Hapus",
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
             ),
           );
+          return confirmed == true;
         },
         background: Container(
           color: Colors.blue,
@@ -705,7 +749,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: const Icon(Icons.delete, color: Colors.white),
         ),
         onDismissed: (d) async {
-          // 1. Hapus Dokumen Transaksi
+          // Hapus dan refund saldo
           await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
@@ -713,27 +757,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .doc(docId)
               .delete();
 
-          // 2. Refund Saldo (LOGIC FIX - Support 2 Bahasa)
           if (rawData['walletId'] != null) {
             String type = rawData['type'] ?? 'expense';
-            // Pastikan amount jadi double agar aman
             double amount = (rawData['amount'] ?? 0).toDouble();
-
-            // --- PERBAIKAN DISINI ---
-            // Cek apakah tipe 'expense' ATAU 'Pengeluaran'
             bool isExpense = (type == 'expense' || type == 'Pengeluaran');
-
-            // Jika Expense dihapus -> Saldo Nambah (+)
-            // Jika Income dihapus -> Saldo Kurang (-)
             double refund = isExpense ? amount : -amount;
-            // ------------------------
-
             await FirebaseFirestore.instance
                 .collection('users')
                 .doc(user.uid)
                 .collection('wallets')
                 .doc(rawData['walletId'])
                 .update({'balance': FieldValue.increment(refund)});
+          }
+
+          // Pop up sukses, lalu kembali ke dashboard tanpa reload
+          if (context.mounted) {
+            await UIHelper.showSuccess(
+              context,
+              "Terhapus",
+              "Transaksi telah dihapus.",
+            );
+            // Tidak perlu pushAndRemoveUntil, cukup pop jika ada navigation stack
+            // Dismissible sudah otomatis menghapus item dari list
           }
         },
         child: Container(

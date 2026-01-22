@@ -58,22 +58,55 @@ class UIHelper {
 
   // 2. Dialog Error
   static Future<void> showError(BuildContext context, String message) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color messageColor = isDark ? Colors.white70 : Colors.black87;
     return showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline, color: Colors.red),
-            SizedBox(width: 10),
-            Text("Ups, Gagal"),
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.cancel_rounded,
+                color: Colors.red,
+                size: 48,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              "Gagal!",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: messageColor),
+            ),
           ],
         ),
-        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Tutup"),
+            child: const Text(
+              "Tutup",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.red,
+              ),
+            ),
           ),
         ],
       ),
