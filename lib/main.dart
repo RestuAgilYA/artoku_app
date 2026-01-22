@@ -11,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+bool _themeChanged = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,7 +91,7 @@ class MyApp extends StatelessWidget {
                 );
               }
               if (snapshot.hasData) {
-                return const _AppLockWrapper(child: DashboardScreen());
+                return _AppLockWrapper(child: DashboardScreen());
               }
               return const WelcomeScreen();
             },
@@ -114,17 +115,22 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     with WidgetsBindingObserver {
   bool _isLocked = false;
   DateTime? _pausedTime;
+  DateTime? _lastThemeChange;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // [PERBAIKAN] Tambahkan listener ini agar _onThemeChanged tidak warning & berfungsi
+    themeNotifier.addListener(_onThemeChanged); 
     _checkAppLockStatus();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // [PERBAIKAN] Hapus listener saat dispose untuk mencegah memory leak
+    themeNotifier.removeListener(_onThemeChanged); 
     super.dispose();
   }
 
@@ -145,6 +151,14 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     }
   }
 
+  // Fungsi ini sekarang akan dipanggil ketika themeNotifier berubah
+  void _onThemeChanged() {
+    setState(() {
+      _themeChanged = true;
+      _lastThemeChange = DateTime.now();
+    });
+  }
+
   void _handleAppResume() async {
     final prefs = await SharedPreferences.getInstance();
     final isEnabled = prefs.getBool('appLockEnabled') ?? false;
@@ -152,6 +166,16 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     if (!isEnabled) {
       setState(() => _isLocked = false);
       return;
+    }
+
+    // Jika resume terjadi segera (<1.2 detik) setelah theme change, abaikan lock
+    if (_themeChanged && _lastThemeChange != null) {
+      final sinceTheme = DateTime.now().difference(_lastThemeChange!);
+      if (sinceTheme.inMilliseconds < 1200) {
+        _themeChanged = false;
+        return;
+      }
+      _themeChanged = false;
     }
 
     // Check apakah app di-pause lebih dari 30 detik

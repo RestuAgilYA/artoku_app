@@ -44,6 +44,7 @@ class TransferFundDialog extends StatefulWidget {
 class _TransferFundDialogState extends State<TransferFundDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
 
   WalletModel? _sourceWallet;
   WalletModel? _destinationWallet;
@@ -60,6 +61,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
   @override
   void dispose() {
     _amountController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -90,6 +92,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             _destinationWallet = _wallets.firstWhere((w) => w.id == widget.transfer!.destinationWalletId);
             _amountController.text =
                 NumberFormat('#,###', 'id_ID').format(widget.transfer!.amount);
+            _noteController.text = widget.transfer!.notes;
           }
           _isLoading = false;
         });
@@ -266,6 +269,15 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         }
                         return null;
                       },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _noteController,
+                      decoration: const InputDecoration(
+                        labelText: 'Catatan (Opsional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
                     ),
                   ],
                 ),

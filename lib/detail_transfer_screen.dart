@@ -38,44 +38,27 @@ class DetailTransferScreen extends StatelessWidget {
         padding: const EdgeInsets.all(25),
         child: Column(
           children: [
-            const SizedBox(height: 20),
-
-            // 1. ICON BESAR
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F4C5C).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.swap_horiz,
-                color: Color(0xFF0F4C5C),
-                size: 40,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 2. JUDUL & NOMINAL
+            // 1. HEADER
             Text(
               '${transfer.sourceWalletName} → ${transfer.destinationWalletName}',
               style: TextStyle(fontSize: 18, color: Colors.grey.shade500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
+            // 2. NOMINAL
             Text(
               formattedAmount,
               style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: Colors.green,
+                color: Color(0xFF0F4C5C),
               ),
+              textAlign: TextAlign.center,
             ),
-
-            const SizedBox(height: 40),
-
+            const SizedBox(height: 30),
             // 3. KARTU DETAIL
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: cardColor,
@@ -97,6 +80,8 @@ class DetailTransferScreen extends StatelessWidget {
                   const Divider(height: 30),
                   _buildDetailRow("Ke Dompet", transfer.destinationWalletName,
                       textColor),
+                  const Divider(height: 30),
+                  _buildDetailRow("Catatan", transfer.notes.trim().isNotEmpty ? transfer.notes : '-', textColor),
                 ],
               ),
             ),
@@ -162,29 +147,32 @@ class DetailTransferScreen extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, TransferModel transfer) {
-    showDialog(
+    showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text("Hapus Transfer?"),
-        content: const Text(
-          "Data akan dihapus permanen. Saldo dompet akan dikembalikan.",
-        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text("Batal"),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              Navigator.pop(context); // Tutup Dialog dulu
-              _deleteTransfer(context, transfer);
-            },
-            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              "Hapus",
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed == true) {
+        await _deleteTransfer(context, transfer);
+      }
+    });
   }
 
   Future<void> _deleteTransfer(
@@ -222,12 +210,14 @@ class DetailTransferScreen extends StatelessWidget {
       await batch.commit();
 
       if (context.mounted) {
-        Navigator.pop(context); // Balik ke halaman sebelumnya
-        UIHelper.showSuccess(
+        await UIHelper.showSuccess(
           context,
-          "Berhasil",
+          "Terhapus",
           "Riwayat transfer telah dihapus.",
         );
+        if (context.mounted) {
+          Navigator.pop(context); // Tutup Detail Screen (Balik ke Riwayat/Wallet)
+        }
       }
     } catch (e) {
       if (context.mounted) {
