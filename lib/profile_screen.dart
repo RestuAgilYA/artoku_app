@@ -899,6 +899,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     onPressed: () async {
                       Navigator.pop(context);
                       await FirebaseAuth.instance.signOut();
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('appLockPin');
+                      await prefs.remove('appLockEnabled');
+                      await prefs.remove('appLockUid');
+                      await FirebaseAuth.instance.signOut();
                       if (context.mounted) {
                         Navigator.pushAndRemoveUntil(
                           context,
