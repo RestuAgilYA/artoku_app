@@ -12,6 +12,7 @@ import 'all_transactions_screen.dart';
 import 'my_wallet_screen.dart';
 import 'package:artoku_app/services/ai_transaction_helper.dart';
 import 'package:artoku_app/services/ui_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -30,8 +31,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadVisibilityPreference();
     _checkAndCreateDefaultWallets();
     _initTransactionStream();
+  }
+
+  Future<void> _loadVisibilityPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isExpenseVisible = prefs.getBool('isExpenseVisible') ?? true;
+    });
   }
 
   void _initTransactionStream() {
@@ -277,9 +286,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: Colors.white70,
                             size: 20,
                           ),
-                          onPressed: () => setState(
-                            () => _isExpenseVisible = !_isExpenseVisible,
-                          ),
+                          onPressed: () async {
+                            final prefs = await SharedPreferences.getInstance();
+                            setState(() {
+                              _isExpenseVisible = !_isExpenseVisible;
+                              prefs.setBool('isExpenseVisible', _isExpenseVisible);
+                            });
+                          },
                         ),
                         const SizedBox(width: 10),
                         Text(

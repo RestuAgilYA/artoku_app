@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:crypto/crypto.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import 'main.dart';
 import 'login_screen.dart';
@@ -69,9 +71,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // --- LOGIC APP LOCK ---
   Future<void> _loadAppLockPreference() async {
     final prefs = await SharedPreferences.getInstance();
+    final savedUid = prefs.getString('appLockUid');
+    final currentUid = currentUser?.uid;
+
+    // Validasi: PIN hanya valid jika milik user yang sedang login
+    bool isPinValid = savedUid != null && savedUid == currentUid;
+
     if (mounted) {
       setState(() {
-        _isAppLockEnabled = prefs.getBool('appLockEnabled') ?? false;
+        _isAppLockEnabled = isPinValid ? (prefs.getBool('appLockEnabled') ?? false) : false;
         _isLoadingAppLock = false;
       });
     }
@@ -79,12 +87,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _handleAppLockToggle(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    final hasPin = prefs.containsKey('appLockPin');
+    final savedUid = prefs.getString('appLockUid');
+    final currentUid = currentUser?.uid;
+    
+    // Cek apakah PIN adalah milik user yang sedang login
+    final hasValidPin = prefs.containsKey('appLockPin') && savedUid == currentUid;
 
     if (value) {
       // Tombol ON
-      if (!hasPin) {
-        // Pertama kali: minta setup PIN
+      if (!hasValidPin) {
+        // Pertama kali atau PIN bukan milik user ini: minta setup PIN
         await Navigator.push(
           context,
           MaterialPageRoute(
@@ -123,7 +135,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showAppLockMenu() async {
     final prefs = await SharedPreferences.getInstance();
-    final hasPin = prefs.containsKey('appLockPin');
+    final savedUid = prefs.getString('appLockUid');
+    final currentUid = currentUser?.uid;
+    final hasPin = prefs.containsKey('appLockPin') && savedUid == currentUid;
 
     if (!mounted) return;
 
@@ -163,35 +177,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildAppLockMenuOption(
                 icon: Icons.edit_note,
                 title: "Ubah PIN",
-                subtitle: "Ganti dengan PIN baru",
+                subtitle: "Ganti PIN lama atau reset dengan password",
                 onTap: () {
                   Navigator.pop(context);
+                  // Arahkan ke halaman setup PIN baru jika ingin ubah,
+                  // atau dialog lupa PIN jika ingin reset.
+                  // Untuk saat ini, kita satukan ke alur Lupa PIN.
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const AppLockSetupPage(isChanging: true),
+                      builder: (context) =>
+                          const AppLockSetupPage(isChanging: true),
                     ),
                   );
                 },
               ),
             if (hasPin)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Divider(color: Colors.grey.withOpacity(0.3)),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Divider(color: Colors.grey),
               ),
-            _buildAppLockMenuOption(
-              icon: Icons.lock_reset,
-              title: "Lupa PIN",
-              subtitle: "Reset PIN dengan password login",
-              onTap: () {
-                Navigator.pop(context);
-                _showForgotPinDialog();
-              },
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Divider(color: Colors.grey.withOpacity(0.3)),
-            ),
             _buildAppLockMenuOption(
               icon: Icons.info_outline,
               title: "Cara Kerja",
@@ -269,235 +274,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Future<void> _showForgotPinDialog() async {
-    final passwordController = TextEditingController();
-    bool isLoading = false;
-    bool obscureText = true;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              backgroundColor: Theme.of(context).cardColor,
-              title: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: primaryColor.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.lock_reset,
-                        color: primaryColor,
-                        size: 24,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        "Reset PIN",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Untuk keamanan, masukkan password login Anda untuk mereset PIN aplikasi.",
-                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "Password Login",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: obscureText,
-                    enabled: !isLoading,
-                    decoration: InputDecoration(
-                      labelText: "Masukkan password login",
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(
-                          color: Colors.grey.withOpacity(0.3),
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF0F4C5C),
-                          width: 2,
-                        ),
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          obscureText ? Icons.visibility_off : Icons.visibility,
-                          color: Colors.grey,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            obscureText = !obscureText;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: isLoading
-                            ? null
-                            : () {
-                                Navigator.pop(context);
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const ForgotPasswordScreen(),
-                                  ),
-                                );
-                              },
-                        child: const Text(
-                          "Lupa Password?",
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 10),
-                      child: CircularProgressIndicator(),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isLoading ? null : () => Navigator.pop(context),
-                  child: const Text("Batal"),
-                ),
-                ElevatedButton(
-                  onPressed: isLoading
-                      ? null
-                      : () async {
-                          if (passwordController.text.isEmpty) {
-                            UIHelper.showError(context, "Password tidak boleh kosong!");
-                            return;
-                          }
-
-                          setState(() {
-                            isLoading = true;
-                          });
-
-                          try {
-                            final user = FirebaseAuth.instance.currentUser;
-                            if (user == null || user.email == null) {
-                              if (mounted) {
-                                UIHelper.showError(context, "User tidak ditemukan!");
-                              }
-                              return;
-                            }
-
-                            // Verifikasi password
-                            final credential = EmailAuthProvider.credential(
-                              email: user.email!,
-                              password: passwordController.text.trim(),
-                            );
-
-                            await user.reauthenticateWithCredential(credential);
-
-                            // Reset PIN lama
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.remove('appLockPin');
-                            await prefs.setBool('appLockEnabled', false);
-
-                            if (mounted) {
-                              Navigator.pop(context); // Tutup dialog password
-
-                              // Buka halaman Buat PIN Baru
-                              await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => const AppLockSetupPage(
-                                    isChanging: false,
-                                    forceSetupFlow: true,
-                                  ),
-                                ),
-                              );
-
-                              // Setelah kembali dari AppLockSetupPage (yang sekarang sudah benar-benar tertutup)
-                              // Kita update tampilan switch di Profile
-                              if (mounted) {
-                                _loadAppLockPreference();
-                              }
-                            }
-                          } on FirebaseAuthException catch (e) {
-                            String message = "Terjadi kesalahan.";
-                            if (e.code == 'wrong-password' ||
-                                e.code == 'invalid-credential') {
-                              message = "Password login salah. Coba lagi!";
-                            } else if (e.code == 'user-not-found') {
-                              message = "User tidak ditemukan.";
-                            }
-
-                            if (mounted) {
-                              UIHelper.showError(context, message);
-                            }
-                          } catch (e) {
-                            if (mounted) {
-                              UIHelper.showError(context, "Gagal: $e");
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() {
-                                isLoading = false;
-                              });
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryColor,
-                    disabledBackgroundColor: primaryColor.withOpacity(0.5),
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          "Reset & Buat Baru",
-                          style: TextStyle(color: Colors.white),
-                        ),
-                ),
-              ],
-            );
-          },
-        );
-      },
     );
   }
 
@@ -1240,10 +1016,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showPasswordReauthenticationDialog() {
+  void _showPasswordReauthenticationDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasPin = prefs.containsKey('appLockPin');
+    final isAppLockEnabled = prefs.getBool('appLockEnabled') ?? false;
+
     final passwordController = TextEditingController();
+    final pinController = TextEditingController();
     bool isLoading = false;
     bool obscureText = true;
+    bool usePin = hasPin && isAppLockEnabled; // Default ke PIN jika ada dan aktif
 
     showDialog(
       context: context,
@@ -1251,25 +1033,377 @@ class _ProfileScreenState extends State<ProfileScreen> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text("Konfirmasi Password"),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text("Konfirmasi Identitas"),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text("Untuk keamanan, masukkan password Anda untuk melanjutkan."),
+                  Text(
+                    "Untuk keamanan, verifikasi identitas Anda dengan memasukkan Password Login / PIN untuk melanjutkan penghapusan akun.",
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Toggle antara Password dan PIN (jika PIN tersedia)
+                  if (hasPin && isAppLockEnabled)
+                    Container(
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => usePin = false),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: !usePin ? primaryColor : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  "Password",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: !usePin ? Colors.white : primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => usePin = true),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: usePin ? primaryColor : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  "PIN",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: usePin ? Colors.white : primaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  
+                  // Input field berdasarkan pilihan
+                  if (!usePin)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: passwordController,
+                          obscureText: obscureText,
+                          enabled: !isLoading,
+                          decoration: InputDecoration(
+                            labelText: "Password Login",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureText ? Icons.visibility_off : Icons.visibility,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  obscureText = !obscureText;
+                                });
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: isLoading
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const ForgotPasswordScreen(),
+                                      ),
+                                    );
+                                  },
+                            child: Text(
+                              "Lupa Password?",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: primaryColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TextField(
+                          controller: pinController,
+                          obscureText: true,
+                          enabled: !isLoading,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          decoration: InputDecoration(
+                            labelText: "PIN Aplikasi (6 digit)",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            counterText: "",
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: isLoading
+                                ? null
+                                : () {
+                                    Navigator.pop(context);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const AppLockSetupPage(isChanging: true),
+                                      ),
+                                    );
+                                  },
+                            child: Text(
+                              "Lupa PIN?",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: primaryColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  
+                  if (isLoading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: CircularProgressIndicator(),
+                    ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isLoading ? null : () => Navigator.pop(context),
+                  child: const Text("Batal"),
+                ),
+                TextButton(
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setState(() {
+                            isLoading = true;
+                          });
+                          
+                          bool verified = false;
+                          
+                          if (usePin) {
+                            // Verifikasi dengan PIN
+                            verified = await _verifyPinForDelete(pinController.text.trim());
+                            if (verified) {
+                              // Jika verifikasi PIN berhasil, langsung hapus akun tanpa perlu password
+                              Navigator.pop(context); // Tutup dialog
+                              await _deleteAccountWithPinVerification();
+                            }
+                          } else {
+                            // Verifikasi dengan Password (existing logic)
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null && user.email != null) {
+                              try {
+                                AuthCredential credential = EmailAuthProvider.credential(
+                                  email: user.email!,
+                                  password: passwordController.text.trim(),
+                                );
+                                await user.reauthenticateWithCredential(credential);
+                                verified = true;
+                                if (verified) {
+                                  Navigator.pop(context); // Tutup dialog
+                                  await _deleteAccount(passwordController.text.trim());
+                                }
+                              } on FirebaseAuthException catch (e) {
+                                String message = "Password salah!";
+                                if (e.code == 'wrong-password' || e.code == 'invalid-credential') {
+                                  message = "Password salah. Silakan coba lagi.";
+                                }
+                                if (mounted) {
+                                  UIHelper.showError(context, message);
+                                }
+                              }
+                            }
+                          }
+                          
+                          if (mounted) {
+                            setState(() {
+                              isLoading = false;
+                            });
+                          }
+                        },
+                  child: const Text("Konfirmasi Hapus", style: TextStyle(color: Colors.red)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _verifyPinForDelete(String inputPin) async {
+    if (inputPin.length != 6) {
+      if (mounted) {
+        UIHelper.showError(context, "PIN harus 6 digit!");
+      }
+      return false;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedPinHash = prefs.getString('appLockPin') ?? '';
+    final inputHash = sha256.convert(utf8.encode(inputPin)).toString();
+
+    if (inputHash != savedPinHash) {
+      if (mounted) {
+        UIHelper.showError(context, "PIN salah. Coba lagi!");
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  Future<void> _deleteAccountWithPinVerification() async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      if (mounted) UIHelper.showError(context, "Tidak ada user yang login.");
+      return;
+    }
+
+    // Deteksi provider user
+    bool isGoogleUser = user.providerData.any((info) => info.providerId == 'google.com');
+    bool isEmailUser = user.providerData.any((info) => info.providerId == 'password');
+
+    if (isGoogleUser) {
+      // Jika user login dengan Google, reauthenticate dengan Google
+      await _reauthenticateWithGoogleAndDelete();
+    } else if (isEmailUser) {
+      // Jika user login dengan Email/Password, minta password untuk reauthenticate
+      await _showPasswordReauthForPinDelete();
+    } else {
+      if (mounted) {
+        UIHelper.showError(context, "Metode login tidak didukung untuk penghapusan akun.");
+      }
+    }
+  }
+
+  Future<void> _reauthenticateWithGoogleAndDelete() async {
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+
+      if (googleUser == null) {
+        if (mounted) UIHelper.showError(context, "Login Google dibatalkan.");
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.reauthenticateWithCredential(credential);
+        
+        // Hapus data Firestore
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+        
+        // Hapus semua data PIN dari SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove('appLockPin');
+        await prefs.remove('appLockEnabled');
+        await prefs.remove('appLockUid');
+        
+        // Hapus user Firebase Auth
+        await user.delete();
+
+        if (mounted) {
+          UIHelper.showSuccess(context, "Akun Dihapus", "Akun Anda telah berhasil dihapus.");
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        UIHelper.showError(context, "Gagal menghapus akun: $e");
+      }
+    }
+  }
+
+  Future<void> _showPasswordReauthForPinDelete() async {
+    final passwordController = TextEditingController();
+    bool isLoading = false;
+    bool obscurePassword = true;
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: const Text("Konfirmasi Akhir"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    "Untuk keamanan tambahan, masukkan password login Anda untuk menyelesaikan penghapusan akun.",
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
                   const SizedBox(height: 15),
                   TextField(
                     controller: passwordController,
-                    obscureText: obscureText,
+                    obscureText: obscurePassword,
+                    enabled: !isLoading,
                     decoration: InputDecoration(
-                      labelText: "Password",
-                      border: const OutlineInputBorder(),
+                      labelText: "Password Login",
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          obscureText ? Icons.visibility_off : Icons.visibility,
+                          obscurePassword ? Icons.visibility_off : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
-                            obscureText = !obscureText;
+                            obscurePassword = !obscurePassword;
                           });
                         },
                       ),
@@ -1284,33 +1418,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: isLoading ? null : () => Navigator.pop(context),
                   child: const Text("Batal"),
                 ),
                 TextButton(
                   onPressed: isLoading
                       ? null
                       : () async {
+                          if (passwordController.text.trim().isEmpty) {
+                            UIHelper.showError(context, "Password tidak boleh kosong!");
+                            return;
+                          }
+
                           setState(() {
                             isLoading = true;
                           });
-                          
-                          // This context is for the dialog
-                          // final dialogNavigator = Navigator.of(context); // This variable is unused and causes a warning.
 
-                          await _deleteAccount(passwordController.text.trim());
-                          
-                          // Check if the widget is still in the tree before updating state.
-                          if (mounted) {
-                            // If deletion was successful, dialog would already be popped.
-                            // If failed, we are still here.
-                            setState(() {
-                              isLoading = false;
-                            });
+                          final user = FirebaseAuth.instance.currentUser;
+                          final navigator = Navigator.of(context);
+
+                          try {
+                            if (user != null && user.email != null) {
+                              final credential = EmailAuthProvider.credential(
+                                email: user.email!,
+                                password: passwordController.text.trim(),
+                              );
+                              
+                              await user.reauthenticateWithCredential(credential);
+                              
+                              // Hapus data Firestore
+                              await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .delete();
+                              
+                              // Hapus semua data PIN dari SharedPreferences
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.remove('appLockPin');
+                              await prefs.remove('appLockEnabled');
+                              await prefs.remove('appLockUid');
+                              
+                              // Hapus user Firebase Auth
+                              await user.delete();
+
+                              navigator.pop(); // Tutup dialog password
+                              if (mounted) {
+                                UIHelper.showSuccess(
+                                  context,
+                                  "Akun Dihapus",
+                                  "Akun Anda telah berhasil dihapus.",
+                                );
+                                navigator.pushAndRemoveUntil(
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginScreen(),
+                                  ),
+                                  (route) => false,
+                                );
+                              }
+                            }
+                          } on FirebaseAuthException catch (e) {
+                            String message = "Terjadi kesalahan.";
+                            if (e.code == 'wrong-password' ||
+                                e.code == 'invalid-credential') {
+                              message = "Password salah. Silakan coba lagi.";
+                            }
+                            if (mounted) {
+                              UIHelper.showError(context, message);
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              UIHelper.showError(context, "Gagal menghapus akun: $e");
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() {
+                                isLoading = false;
+                              });
+                            }
                           }
-                          // If deletion fails, the dialog stays open for another try.
                         },
-                  child: const Text("Konfirmasi Hapus", style: TextStyle(color: Colors.red)),
+                  child: const Text(
+                    "Hapus Akun",
+                    style: TextStyle(color: Colors.red),
+                  ),
                 ),
               ],
             );
@@ -1342,6 +1532,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       // This does not delete sub-collections like 'transactions'.
       // A complete solution would use a Cloud Function to delete all related data.
       await FirebaseFirestore.instance.collection('users').doc(user.uid).delete();
+      
+      // Hapus semua data PIN dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('appLockPin');
+      await prefs.remove('appLockEnabled');
+      await prefs.remove('appLockUid');
       
       // 3. Delete the Firebase Auth user
       await user.delete();
