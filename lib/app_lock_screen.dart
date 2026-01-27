@@ -104,7 +104,11 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
         }
       } else {
         // Email tidak ditemukan di device ini (misal user clear data atau ganti hp)
-        if (mounted) UIHelper.showError(context, "Permintaan reset tidak ditemukan di perangkat ini.");
+        // Jangan tampilkan error jika bukan hasil klik magic link (misal hot restart/cold start)
+        // Cek: hanya tampilkan error jika deep link ini didapat dari klik link (bukan initial link tanpa proses reset)
+        // Solusi: cukup abaikan tanpa pop up agar tidak mengganggu user
+        // (Jika ingin lebih aman, bisa log atau debugPrint saja)
+        // debugPrint("Permintaan reset tidak ditemukan di perangkat ini.");
       }
     }
   }
