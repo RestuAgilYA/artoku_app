@@ -9,7 +9,7 @@ import 'package:artoku_app/add_transaction_sheet.dart';
 
 class AiTransactionHelper {
   // --- FUNGSI UNTUK TOMBOL MIC (POPUP SUARA) ---
-  // Diubah menjadi async untuk menunggu hasil dari popup
+  // async untuk menunggu hasil dari popup
   static Future<void> showVoiceInput(BuildContext context) async {
     // 1. Buka Popup dan tunggu sampai user menekan 'Selesai' atau 'Batal'
     final String? recordedText = await showModalBottomSheet<String>(
@@ -19,8 +19,7 @@ class AiTransactionHelper {
       builder: (ctx) => const _VoiceInputPopup(),
     );
 
-    // 2. Jika ada teks yang dikembalikan (User klik Selesai), proses di sini
-    // Menggunakan 'context' milik Dashboard yang aman (tidak akan unmounted)
+    // 2. Jika ada teks yang dikembalikan (User klik Selesai)
     if (recordedText != null && recordedText.isNotEmpty) {
       if (context.mounted) {
         _processTextToGemini(context, recordedText);
@@ -28,7 +27,7 @@ class AiTransactionHelper {
     }
   }
 
-  // --- LOGIKA PROSES GEMINI (Dipisah agar aman) ---
+  // --- LOGIKA PROSES GEMINI ---
   static Future<void> _processTextToGemini(
     BuildContext context,
     String text,
@@ -128,8 +127,9 @@ class _VoiceInputPopupState extends State<_VoiceInputPopup> {
       },
       onError: (val) {
         LoggerService.error('Speech Error: $val');
-        if (mounted)
+        if (mounted) {
           setState(() => _text = "Gagal mendengar. Cek izin mikrofon.");
+        }
       },
     );
 
@@ -152,7 +152,7 @@ class _VoiceInputPopupState extends State<_VoiceInputPopup> {
           setState(() {
             _text = val.recognizedWords;
             if (_text.isNotEmpty) {
-              _lastValidText = _text; // Simpan teks valid
+              _lastValidText = _text;
             }
           });
         }
@@ -161,7 +161,9 @@ class _VoiceInputPopupState extends State<_VoiceInputPopup> {
         if (mounted) setState(() => _soundLevel = level);
       },
       localeId: "id_ID",
+      // ignore: deprecated_member_use
       partialResults: true,
+      // ignore: deprecated_member_use
       listenMode: stt.ListenMode.dictation,
     );
   }
@@ -219,6 +221,7 @@ class _VoiceInputPopupState extends State<_VoiceInputPopup> {
                     : 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  // ignore: deprecated_member_use
                   color: Colors.blueAccent.withOpacity(0.2),
                 ),
               ),

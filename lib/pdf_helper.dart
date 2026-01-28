@@ -175,6 +175,7 @@ class PdfHelper {
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
+            // ignore: deprecated_member_use
             pw.Table.fromTextArray(
               headers: ['Tanggal', 'Kategori', 'Catatan', 'Nominal'],
               data: transactions.isEmpty
@@ -216,6 +217,7 @@ class PdfHelper {
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
+            // ignore: deprecated_member_use
             pw.Table.fromTextArray(
               headers: ['Tanggal', 'Dari Dompet', 'Ke Dompet', 'Jumlah'],
               data: transfers.isEmpty

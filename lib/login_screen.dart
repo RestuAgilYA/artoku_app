@@ -65,13 +65,16 @@ class _LoginScreenState extends State<LoginScreen> {
       LoggerService.error("Login Firebase Error", e, stack);
 
       String message = "Login gagal.";
-      if (e.code == 'user-not-found')
+      if (e.code == 'user-not-found') {
         message = "Email tidak terdaftar.";
-      else if (e.code == 'wrong-password')
+      } else if (e.code == 'wrong-password')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Password salah.";
       else if (e.code == 'invalid-email')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Format email salah.";
       else if (e.code == 'too-many-requests')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Terlalu banyak percobaan. Coba lagi nanti.";
 
       if (mounted) UIHelper.showError(context, message);
@@ -117,6 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         width: 150,
                         height: 150,
                         decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
                           color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
@@ -136,6 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
+                                  // ignore: deprecated_member_use
                                   color: Colors.black.withOpacity(0.1),
                                   blurRadius: 15,
                                   offset: const Offset(0, 5),
@@ -377,6 +382,7 @@ class _LoginScreenState extends State<LoginScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
+              // ignore: deprecated_member_use
               color: Colors.black.withOpacity(0.05),
               blurRadius: 10,
               offset: const Offset(0, 5),

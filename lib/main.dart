@@ -21,8 +21,10 @@ void main() async {
   // [BARU] Load .env
   try {
     await dotenv.load(fileName: ".env");
+    // ignore: avoid_print
     print("Env loaded successfully");
   } catch (e) {
+    // ignore: avoid_print
     print("Error loading .env: $e");
   }
 
@@ -33,8 +35,10 @@ void main() async {
 
     // Update value notifier sesuai data yang disimpan
     themeNotifier.value = isDarkMode ? ThemeMode.dark : ThemeMode.light;
+    // ignore: avoid_print
     print("Tema dimuat: ${isDarkMode ? 'Dark' : 'Light'}");
   } catch (e) {
+    // ignore: avoid_print
     print("Gagal memuat tema: $e");
   }
 

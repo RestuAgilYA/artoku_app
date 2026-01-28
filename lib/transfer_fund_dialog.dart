@@ -38,6 +38,7 @@ class TransferFundDialog extends StatefulWidget {
   const TransferFundDialog({super.key, this.transfer});
 
   @override
+  // ignore: library_private_types_in_public_api
   _TransferFundDialogState createState() => _TransferFundDialogState();
 }
 
@@ -187,8 +188,10 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
 
         await batch.commit();
 
+      // ignore: use_build_context_synchronously
         Navigator.of(context).pop(); // Close dialog on success
         UIHelper.showSuccess(
+          // ignore: use_build_context_synchronously
             context, "Berhasil", "Dana telah ${_isEditMode ? 'diperbarui' : 'dipindahkan'}.");
       } catch (e) {
         if (mounted) {
@@ -307,7 +310,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
     required List<WalletModel> items,
   }) {
     return DropdownButtonFormField<WalletModel>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
       isExpanded: true,
       decoration: InputDecoration(

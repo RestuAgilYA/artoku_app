@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import 'detail_transaction_screen.dart';
 import 'add_transaction_sheet.dart';
-import 'package:artoku_app/services/ui_helper.dart'; // Import ini
+import 'package:artoku_app/services/ui_helper.dart';
 
 class AllTransactionsScreen extends StatefulWidget {
   const AllTransactionsScreen({super.key});
@@ -363,6 +362,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
                         color: isDark ? Colors.red.shade900.withOpacity(0.15) : Colors.red.shade50,
                         shape: BoxShape.circle,
                       ),
@@ -443,6 +443,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
             if (mounted) {
               // GANTI SNACKBAR KE POP-UP DIALOG SUKSES
               UIHelper.showSuccess(
+                // ignore: use_build_context_synchronously
                 context,
                 "Terhapus",
                 "Transaksi telah dihapus.",
@@ -475,6 +476,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
+                  // ignore: deprecated_member_use
                   color: Colors.black.withOpacity(0.03),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
@@ -487,6 +489,7 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                 vertical: 8,
               ),
               leading: CircleAvatar(
+                // ignore: deprecated_member_use
                 backgroundColor: color.withOpacity(0.1),
                 radius: 24,
                 child: Icon(

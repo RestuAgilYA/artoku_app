@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -107,6 +106,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (!hasValidPin) {
         // Pertama kali atau PIN bukan milik user ini: minta setup PIN
         await Navigator.push(
+          // ignore: use_build_context_synchronously
           context,
           MaterialPageRoute(
             builder: (context) => const AppLockSetupPage(isChanging: false),
@@ -203,6 +203,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
                   color: Colors.orange.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -272,6 +273,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             onSuccess: () async {
                               await _disableAppLock();
                               if (mounted) {
+                                // ignore: use_build_context_synchronously
                                 Navigator.pop(context);
                               }
                             },
@@ -342,6 +344,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
                   color: primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -419,6 +422,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
@@ -464,6 +468,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
                   color: primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -696,6 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 200,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                // ignore: deprecated_member_use
                 color: Colors.white.withOpacity(0.1),
               ),
             ),
@@ -708,6 +714,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                // ignore: deprecated_member_use
                 color: Colors.white.withOpacity(0.08),
               ),
             ),
@@ -749,6 +756,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                     boxShadow: [
                                       BoxShadow(
+                                        // ignore: deprecated_member_use
                                         color: Colors.black.withOpacity(0.5),
                                         blurRadius: 15,
                                         spreadRadius: 2,
@@ -910,6 +918,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(0.05),
             blurRadius: 5,
             offset: const Offset(0, 2),
@@ -925,6 +934,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
+          // ignore: deprecated_member_use
           color: primaryColor.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
@@ -958,6 +968,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
+          // ignore: deprecated_member_use
           color: primaryColor.withOpacity(0.1),
           shape: BoxShape.circle,
         ),
@@ -975,7 +986,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             )
           : Switch(
               value: value,
-              activeColor: primaryColor,
+              activeThumbColor: primaryColor,
               onChanged: onChanged,
             ),
     );
@@ -1034,6 +1045,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
                         color: Colors.orange.withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
@@ -1148,6 +1160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: Colors.red.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
@@ -1206,6 +1219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         hasPin && isAppLockEnabled; // Default ke PIN jika ada dan aktif
 
     showDialog(
+      // ignore: use_build_context_synchronously
       context: context,
       builder: (context) {
         return StatefulBuilder(
@@ -1228,6 +1242,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (hasPin && isAppLockEnabled)
                     Container(
                       decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
                         color: primaryColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -1422,6 +1437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             );
                             if (verified) {
                               // Jika verifikasi PIN berhasil, langsung hapus akun tanpa perlu password
+                              // ignore: use_build_context_synchronously
                               Navigator.pop(context); // Tutup dialog
                               await _deleteAccountWithPinVerification();
                             }
@@ -1440,6 +1456,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 );
                                 verified = true;
                                 if (verified) {
+                                  // ignore: use_build_context_synchronously
                                   Navigator.pop(context); // Tutup dialog
                                   await _deleteAccount(
                                     passwordController.text.trim(),
@@ -1453,6 +1470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       "Password salah. Silakan coba lagi.";
                                 }
                                 if (mounted) {
+                                  // ignore: use_build_context_synchronously
                                   UIHelper.showError(context, message);
                                 }
                               }
@@ -1697,6 +1715,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               navigator.pop(); // Tutup dialog password
                               if (mounted) {
                                 UIHelper.showSuccess(
+                                  // ignore: use_build_context_synchronously
                                   context,
                                   "Akun Dihapus",
                                   "Akun Anda telah berhasil dihapus.",
@@ -1716,11 +1735,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               message = "Password salah. Silakan coba lagi.";
                             }
                             if (mounted) {
+                              // ignore: use_build_context_synchronously
                               UIHelper.showError(context, message);
                             }
                           } catch (e) {
                             if (mounted) {
                               UIHelper.showError(
+                                // ignore: use_build_context_synchronously
                                 context,
                                 "Gagal menghapus akun: $e",
                               );
@@ -2004,6 +2025,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
         if (query.docs.isNotEmpty) {
           UIHelper.showError(
+            // ignore: use_build_context_synchronously
             context,
             "Nomor telepon ini sudah terdaftar oleh pengguna lain.",
           );
@@ -2035,6 +2057,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       if (isPhoneChanged) {
         // If phone number changes, show the WhatsApp dialog
         await showDialog(
+          // ignore: use_build_context_synchronously
           context: context,
           barrierDismissible: false,
           builder: (BuildContext dialogContext) {
@@ -2065,6 +2088,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   ),
                   onPressed: () async {
                     if (await _launchWhatsApp()) {
+                      // ignore: use_build_context_synchronously
                       Navigator.of(dialogContext).pop();
                     }
                   },
@@ -2077,6 +2101,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       } else if (isNameChanged || isPhotoChanged) {
         // If only name or photo changed, show a simple success dialog
         await showDialog(
+          // ignore: use_build_context_synchronously
           context: context,
           builder: (BuildContext dialogContext) {
             return AlertDialog(
@@ -2177,6 +2202,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                 BoxShadow(
                                   spreadRadius: 2,
                                   blurRadius: 10,
+                                  // ignore: deprecated_member_use
                                   color: Colors.black.withOpacity(0.1),
                                 ),
                               ],
@@ -2256,6 +2282,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             : null,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
+                          // ignore: deprecated_member_use
                           disabledBackgroundColor: primaryColor.withOpacity(
                             0.5,
                           ),
@@ -2313,6 +2340,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.grey),
             filled: isReadOnly,
             fillColor: isReadOnly
+            // ignore: deprecated_member_use
                 ? (isDark ? Colors.white.withOpacity(0.1) : Colors.grey[200])
                 : null,
             contentPadding: const EdgeInsets.symmetric(
@@ -2568,6 +2596,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
+                  // ignore: deprecated_member_use
                   disabledBackgroundColor: primaryColor.withOpacity(0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
@@ -2733,6 +2762,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
+                      // ignore: deprecated_member_use
                       color: Colors.red.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
@@ -2831,6 +2861,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                       height: 80,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
+                        // ignore: deprecated_member_use
                         color: Colors.white.withOpacity(0.2),
                       ),
                       child: const Icon(
@@ -2874,9 +2905,11 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                           height: 55,
                           margin: const EdgeInsets.symmetric(horizontal: 4),
                           decoration: BoxDecoration(
+                            // ignore: deprecated_member_use
                             color: Colors.white.withOpacity(0.2),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
+                              // ignore: deprecated_member_use
                               color: Colors.white.withOpacity(0.5),
                               width: 2,
                             ),
@@ -2934,8 +2967,10 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                   height: 70,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.2),
                     border: Border.all(
+                      // ignore: deprecated_member_use
                       color: Colors.white.withOpacity(0.5),
                       width: 2,
                     ),
@@ -2969,8 +3004,10 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
         height: 70,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          // ignore: deprecated_member_use
           color: Colors.white.withOpacity(0.2),
           border: Border.all(
+            // ignore: deprecated_member_use
             color: Colors.white.withOpacity(0.5),
             width: 2,
           ),

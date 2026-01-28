@@ -279,8 +279,9 @@ class _ReportScreenState extends State<ReportScreen> {
                                   showTitles: true,
                                   reservedSize: 40,
                                   getTitlesWidget: (value, meta) {
-                                    if (value == 0)
+                                    if (value == 0) {
                                       return const SizedBox.shrink();
+                                    }
                                     return Text(
                                       _formatCompactCurrency(value),
                                       style: TextStyle(
@@ -322,6 +323,7 @@ class _ReportScreenState extends State<ReportScreen> {
                               show: true,
                               drawVerticalLine: false,
                               getDrawingHorizontalLine: (value) => FlLine(
+                                // ignore: deprecated_member_use
                                 color: Colors.grey.withOpacity(0.1),
                                 strokeWidth: 1,
                               ),
@@ -404,6 +406,7 @@ class _ReportScreenState extends State<ReportScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                // ignore: deprecated_member_use
                 color: Colors.white.withOpacity(0.1),
               ),
             ),
@@ -532,6 +535,7 @@ class _ReportScreenState extends State<ReportScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),

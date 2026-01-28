@@ -8,6 +8,7 @@ class LoggerService {
       lineLength: 120,
       colors: true,
       printEmojis: true,
+      // ignore: deprecated_member_use
       printTime: true,
     ),
   );

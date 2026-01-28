@@ -78,6 +78,7 @@ class TransferHistoryTab extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.all(15),
                               decoration: BoxDecoration(
+                                // ignore: deprecated_member_use
                                 color: Colors.red.withOpacity(0.1),
                                 shape: BoxShape.circle,
                               ),
@@ -163,6 +164,7 @@ class TransferHistoryTab extends StatelessWidget {
                   });
 
                   UIHelper.showSuccess(
+                    // ignore: use_build_context_synchronously
                     context,
                     "Berhasil",
                     "Riwayat transfer telah dihapus.",
@@ -257,7 +259,7 @@ class TransferHistoryTab extends StatelessWidget {
 class DetailTransferDialog extends StatelessWidget {
   final TransferModel transfer;
 
-  const DetailTransferDialog({required this.transfer});
+  const DetailTransferDialog({super.key, required this.transfer});
 
   @override
   Widget build(BuildContext context) {
@@ -316,6 +318,7 @@ class DetailTransferDialog extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
                         color: const Color(0xFF0F4C5C).withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
@@ -397,9 +400,10 @@ class DetailTransferDialog extends StatelessWidget {
 class TransferFundDialog extends StatefulWidget {
   final TransferModel? transfer;
 
-  const TransferFundDialog({this.transfer});
+  const TransferFundDialog({super.key, this.transfer});
 
   @override
+  // ignore: library_private_types_in_public_api
   _TransferFundDialogState createState() => _TransferFundDialogState();
 }
 
@@ -697,7 +701,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
         : items;
 
     return DropdownButtonFormField<WalletModel>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
       isExpanded: true,
       decoration: InputDecoration(

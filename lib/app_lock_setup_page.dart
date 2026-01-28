@@ -140,6 +140,7 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
                   color: primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -294,10 +295,12 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
                   final credential = EmailAuthProvider.credential(email: user.email!, password: passwordController.text.trim());
                   await user.reauthenticateWithCredential(credential);
                   if (mounted) {
+                    // ignore: use_build_context_synchronously
                     Navigator.pop(context);
                     _skipToNewPinStep(); // Sukses -> Lanjut ke PIN Baru
                   }
                 } catch (e) {
+                  // ignore: use_build_context_synchronously
                   UIHelper.showError(context, "Password salah!");
                 }
               },
@@ -549,6 +552,7 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
               width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -616,6 +620,7 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
                         color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
+                          // ignore: deprecated_member_use
                           color: primaryColor.withOpacity(0.3),
                           width: 2,
                         ),
@@ -658,6 +663,7 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
+                    // ignore: deprecated_member_use
                     disabledBackgroundColor: primaryColor.withOpacity(0.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -719,6 +725,7 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
           shape: BoxShape.circle,
           color: isDark ? Colors.grey[800] : Colors.grey[100],
           border: Border.all(
+            // ignore: deprecated_member_use
             color: primaryColor.withOpacity(0.4),
             width: 1.5,
           ),
@@ -748,6 +755,7 @@ class _AppLockSetupPageState extends State<AppLockSetupPage> {
           shape: BoxShape.circle,
           color: isDark ? Colors.grey[800] : Colors.grey[100],
           border: Border.all(
+            // ignore: deprecated_member_use
             color: primaryColor.withOpacity(0.4),
             width: 1.5,
           ),

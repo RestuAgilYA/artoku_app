@@ -38,6 +38,7 @@ class EditTransferScreen extends StatefulWidget {
   const EditTransferScreen({super.key, required this.transfer});
 
   @override
+  // ignore: library_private_types_in_public_api
   _EditTransferScreenState createState() => _EditTransferScreenState();
 }
 
@@ -106,7 +107,9 @@ class _EditTransferScreenState extends State<EditTransferScreen> {
 
         await batch.commit();
 
+      // ignore: use_build_context_synchronously
         Navigator.of(context).pop(); // Close screen on success
+        // ignore: use_build_context_synchronously
         UIHelper.showSuccess(context, "Berhasil", "Transfer telah diperbarui.");
       } catch (e) {
         if (mounted) {

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart'; // Import package ini
+import 'package:url_launcher/url_launcher.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
-  // Fungsi Helper Membuka Link (FIXED)
+  // Fungsi Helper Membuka Link
   Future<void> _launchURL(BuildContext context, String urlString) async {
     final Uri uri = Uri.parse(urlString);
     try {
@@ -40,11 +40,12 @@ class AboutScreen extends StatelessWidget {
         padding: const EdgeInsets.all(25),
         child: Column(
           children: [
-            // ... (Bagian Logo & Nama App Tetap Sama) ...
+            // (Bagian Logo & Nama App)
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
                 color: isDark
+                    // ignore: deprecated_member_use
                     ? Colors.white.withOpacity(0.1)
                     : Colors.transparent,
                 shape: BoxShape.circle,
@@ -84,6 +85,7 @@ class AboutScreen extends StatelessWidget {
                 border: Border.all(color: const Color(0xFF0F4C5C), width: 3),
                 boxShadow: [
                   BoxShadow(
+                    // ignore: deprecated_member_use
                     color: Colors.black.withOpacity(0.2),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
@@ -138,7 +140,7 @@ class AboutScreen extends StatelessWidget {
 
             const SizedBox(height: 30),
 
-            // --- TAMBAHAN AJAKAN (CALL TO ACTION) ---
+            // AJAKAN (CALL TO ACTION) 
             Text(
               "Ingin berdiskusi atau kenalan lebih jauh?",
               style: TextStyle(
@@ -211,10 +213,12 @@ class AboutScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
+              // ignore: deprecated_member_use
               color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
+                  // ignore: deprecated_member_use
                   color: Colors.black.withOpacity(0.1),
                   blurRadius: 5,
                   offset: const Offset(0, 3),

@@ -8,8 +8,8 @@ import 'package:local_auth/local_auth.dart';
 import 'package:artoku_app/services/ui_helper.dart';
 import 'package:artoku_app/app_lock_setup_page.dart';
 import 'package:artoku_app/forgot_password_screen.dart';
-import 'package:app_links/app_links.dart'; // [BARU] Untuk menangkap link
-import 'dart:async'; // [BARU] Untuk StreamSubscription
+import 'package:app_links/app_links.dart';
+import 'dart:async';
 
 class AppLockScreen extends StatefulWidget {
   final VoidCallback onUnlockSuccess;
@@ -29,11 +29,11 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
   final int _pinLength = 6;
   final Color primaryColor = const Color(0xFF0F4C5C);
 
-  // [BARU] Variabel untuk Deep Link
+  // Variabel untuk Deep Link
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
 
-  // [BARU] Variabel untuk Biometric
+  // Variabel untuk Biometric
   final LocalAuthentication _localAuth = LocalAuthentication();
   bool _biometricAvailable = false;
   bool _isAuthenticating = false; // Flag untuk mencegah auth ganda
@@ -76,7 +76,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     super.dispose();
   }
 
-  // --- [BARU] LOGIC DEEP LINK (MAGIC LINK) ---
+  // --- LOGIC DEEP LINK (MAGIC LINK) ---
   Future<void> _initDeepLinkListener() async {
     _appLinks = AppLinks();
 
@@ -98,7 +98,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     });
   }
 
-  // --- [BARU] LOGIC BIOMETRIC AUTHENTICATION ---
+  // --- LOGIC BIOMETRIC AUTHENTICATION ---
   Future<void> _checkBiometric() async {
     try {
       final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
@@ -230,7 +230,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     }
   }
 
-  // --- [BARU] LOGIC RESET & NAVIGASI ---
+  // --- LOGIC RESET & NAVIGASI ---
   Future<void> _resetAndNavigateToSetup() async {
     final prefs = await SharedPreferences.getInstance();
     
@@ -263,7 +263,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     }
   }
 
-  // --- LOGIC INPUT PIN (TIDAK BERUBAH) ---
+  // --- LOGIC INPUT PIN ---
   void _addDigit(String digit) {
     if (_pinInput.length < _pinLength) {
       setState(() {
@@ -355,6 +355,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
               Container(
                 padding: const EdgeInsets.all(15),
                 decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
                   color: primaryColor.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -437,7 +438,6 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     UIHelper.showLoading(context);
     try {
       var acs = ActionCodeSettings(
-        // Domain Project Firebase Anda (Update sesuai konfigurasi terakhir)
         url: 'https://artoku-20712.firebaseapp.com/reset-pin', 
         handleCodeInApp: true,
         iOSBundleId: 'com.example.artokuApp',
@@ -456,7 +456,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
       await prefs.setString('emailForPinReset', email);
 
       if (mounted) {
-        Navigator.pop(context); // Tutup Loading
+        Navigator.pop(context);
         UIHelper.showSuccess(
           context, 
           "Link Terkirim", 
@@ -471,7 +471,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     }
   }
 
-  // Dialog untuk User Password (Input Password - Flow Lama)
+  // Dialog untuk User Password
   Future<void> _showPasswordResetDialog(User user) async {
     final passwordController = TextEditingController();
     bool showPassword = false;
@@ -555,6 +555,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
 
                   // Password BENAR -> Reset
                   if (mounted) {
+                    // ignore: use_build_context_synchronously
                     Navigator.pop(context); // Tutup dialog
                     await _resetAndNavigateToSetup();
                   }
@@ -568,10 +569,12 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
                     errorMessage = "Sesi berakhir. Silakan login kembali.";
                   }
                   if (mounted) {
+                    // ignore: use_build_context_synchronously
                     UIHelper.showError(context, errorMessage);
                   }
                 } catch (e) {
                   if (mounted) {
+                    // ignore: use_build_context_synchronously
                     UIHelper.showError(context, "Error: ${e.toString()}");
                   }
                 }
@@ -607,6 +610,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                // ignore: deprecated_member_use
                 color: Colors.white.withOpacity(0.2),
               ),
               child: const Icon(
@@ -664,8 +668,10 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(_isAuthenticating ? 0.1 : 0.2),
                     border: Border.all(
+                      // ignore: deprecated_member_use
                       color: Colors.white.withOpacity(0.5),
                       width: 2,
                     ),
@@ -703,9 +709,11 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
                   height: 55,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   decoration: BoxDecoration(
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
+                      // ignore: deprecated_member_use
                       color: Colors.white.withOpacity(0.5),
                       width: 2,
                     ),
@@ -720,7 +728,7 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
                               color: Colors.white,
                             ),
                           )
-                        : const SizedBox.shrink(), // PERBAIKAN: Gunakan shrink
+                        : const SizedBox.shrink(),
                   ),
                 ),
               ),
@@ -759,8 +767,10 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
                   height: 70,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.2),
                     border: Border.all(
+                      // ignore: deprecated_member_use
                       color: Colors.white.withOpacity(0.5),
                       width: 2,
                     ),
@@ -796,8 +806,10 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
         height: 70,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
+          // ignore: deprecated_member_use
           color: Colors.white.withOpacity(0.2),
           border: Border.all(
+            // ignore: deprecated_member_use
             color: Colors.white.withOpacity(0.5),
             width: 2,
           ),

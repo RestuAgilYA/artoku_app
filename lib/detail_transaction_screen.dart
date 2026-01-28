@@ -53,6 +53,7 @@ class DetailTransactionScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(25),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
@@ -90,6 +91,7 @@ class DetailTransactionScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
+                    // ignore: deprecated_member_use
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
@@ -198,6 +200,7 @@ class DetailTransactionScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(15),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: Colors.red.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
@@ -256,6 +259,7 @@ class DetailTransactionScreen extends StatelessWidget {
             .doc(docId);
         final docSnap = await docRef.get();
         if (!docSnap.exists) {
+          // ignore: use_build_context_synchronously
           UIHelper.showError(context, "Error: Data transaksi tidak ditemukan di DB!");
           return;
         }
@@ -272,6 +276,7 @@ class DetailTransactionScreen extends StatelessWidget {
         }
         bool isExpense = (realType == 'expense' || realType == 'Pengeluaran');
         if (realWalletId == null || realWalletId.isEmpty) {
+          // ignore: use_build_context_synchronously
           UIHelper.showError(context, "Gagal Refund: ID Dompet Kosong di Database!");
           await docRef.delete();
           return;
@@ -283,6 +288,7 @@ class DetailTransactionScreen extends StatelessWidget {
             .doc(realWalletId);
         final walletSnap = await walletRef.get();
         if (!walletSnap.exists) {
+          // ignore: use_build_context_synchronously
           UIHelper.showError(context, "Gagal Refund: Dompet dengan ID '$realWalletId' sudah dihapus!");
           await docRef.delete();
           return;
@@ -310,6 +316,7 @@ class DetailTransactionScreen extends StatelessWidget {
           }
         }
       } catch (e) {
+        // ignore: use_build_context_synchronously
         UIHelper.showError(context, "Error Sistem: $e");
       }
     });

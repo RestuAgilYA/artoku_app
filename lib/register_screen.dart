@@ -69,6 +69,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           // 5. TAMPILKAN DIALOG SUKSES
           await showDialog(
+            // ignore: use_build_context_synchronously
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
@@ -112,11 +113,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } on FirebaseAuthException catch (e) {
       String message = "Gagal Daftar.";
-      if (e.code == 'weak-password')
+      if (e.code == 'weak-password') {
         message = "Password terlalu lemah (min 6 karakter).";
-      else if (e.code == 'email-already-in-use')
+      } else if (e.code == 'email-already-in-use')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Email sudah terdaftar. Silakan login.";
       else if (e.code == 'invalid-email')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Format email tidak valid.";
 
       if (mounted) _showAlert("Gagal", message, isError: true);
@@ -196,6 +199,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         width: 120,
                         height: 120,
                         decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
                           color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
@@ -215,6 +219,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               shape: BoxShape.circle,
                               boxShadow: [
                                 BoxShadow(
+                                  // ignore: deprecated_member_use
                                   color: Colors.black.withOpacity(0.1),
                                   blurRadius: 15,
                                   offset: const Offset(0, 5),
@@ -354,6 +359,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
+                                // ignore: deprecated_member_use
                                 color: Colors.black.withOpacity(0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 5),

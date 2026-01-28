@@ -4,7 +4,7 @@ import 'package:csv/csv.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:intl/intl.dart'; // Pastikan kamu punya intl atau format manual
+import 'package:intl/intl.dart';
 
 class ExportService {
   // Fungsi utama untuk export
@@ -64,6 +64,7 @@ class ExportService {
       // 6. Bagikan File (Share Sheet)
       await Share.shareXFiles([XFile(path)], text: 'Laporan Keuangan ArtoKu');
     } catch (e) {
+      // ignore: avoid_print
       print("Error Export CSV: $e");
       rethrow; // Lempar error agar bisa ditangkap di UI
     }

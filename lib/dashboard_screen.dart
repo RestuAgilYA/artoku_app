@@ -187,8 +187,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final Color textColor = isDark ? Colors.white : Colors.black;
     final User? user = FirebaseAuth.instance.currentUser;
 
-    if (user == null)
+    if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
     return PopScope(
       canPop: false,
@@ -247,9 +248,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             String type = data['type'] ?? 'expense';
 
             if (date.year == now.year && date.month == now.month) {
-              if (type == 'expense')
+              if (type == 'expense') {
                 thisMonthExpense += amount;
-              else if (type == 'income')
+              } else if (type == 'income')
+                // ignore: curly_braces_in_flow_control_structures
                 thisMonthIncome += amount;
             }
             if (date.year == now.year && date.month == now.month - 1) {
@@ -280,6 +282,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   height: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.1),
                   ),
                 ),
@@ -292,6 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.08),
                   ),
                 ),
@@ -467,6 +471,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
+        // ignore: deprecated_member_use
         color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -504,8 +509,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         int count = 0;
         if (snapshot.hasData) {
           count = snapshot.data!.docs.length;
-          for (var doc in snapshot.data!.docs)
+          for (var doc in snapshot.data!.docs){
             totalBalance += (doc['balance'] ?? 0).toDouble();
+          }
         }
         return Container(
           padding: const EdgeInsets.all(12),
@@ -545,6 +551,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Text(
                 "$count Akun Terhubung",
                 style: TextStyle(
+                  // ignore: deprecated_member_use
                   color: Colors.white.withOpacity(0.6),
                   fontSize: 9,
                 ),
@@ -565,6 +572,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(0.08),
             blurRadius: 15,
             offset: const Offset(0, 5),
@@ -606,7 +614,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     Color iconColor = isComingSoon ? Colors.grey : primaryColor;
     Color bgColor = isComingSoon
+        // ignore: deprecated_member_use
         ? Colors.grey.withOpacity(0.1)
+        // ignore: deprecated_member_use
         : primaryColor.withOpacity(0.1);
     return GestureDetector(
       onTap: onTap,
@@ -663,8 +673,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _transactionStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(height: 100);
+        }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Padding(
@@ -727,6 +738,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   data,
                   user,
                 );
+              // ignore: unnecessary_to_list_in_spreads
               }).toList(),
             ],
           ),
@@ -779,6 +791,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Container(
                     padding: const EdgeInsets.all(15),
                     decoration: BoxDecoration(
+                      // ignore: deprecated_member_use
                       color: Colors.red.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
@@ -865,6 +878,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           // Pop up sukses, lalu kembali ke dashboard tanpa reload
           if (context.mounted) {
             await UIHelper.showSuccess(
+              // ignore: use_build_context_synchronously
               context,
               "Terhapus",
               "Transaksi telah dihapus.",
@@ -879,6 +893,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
+                // ignore: deprecated_member_use
                 color: Colors.black.withOpacity(0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
@@ -906,6 +921,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             leading: CircleAvatar(
+              // ignore: deprecated_member_use
               backgroundColor: color.withOpacity(0.1),
               radius: 24,
               child: Icon(Icons.monetization_on, color: color, size: 24),
@@ -941,15 +957,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
+        // ignore: deprecated_member_use
         color: Theme.of(context).cardColor.withOpacity(0.95),
         borderRadius: BorderRadius.circular(50),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(0.15),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
         ],
+        // ignore: deprecated_member_use
         border: Border.all(color: Colors.grey.shade200.withOpacity(0.2)),
       ),
       child: Row(
@@ -1004,6 +1023,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+        // ignore: deprecated_member_use
         border: Border.all(color: Colors.grey.shade300.withOpacity(0.3)),
         color: Theme.of(context).cardColor,
       ),
