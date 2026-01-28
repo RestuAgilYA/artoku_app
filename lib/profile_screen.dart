@@ -1049,7 +1049,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
                         color: isDark
-                            ? const Color.fromRGBO(244, 67, 54, 1)
+                            ? const Color.fromRGBO(255, 82, 82, 1)
                             : const Color(0xFF0F4C5C),
                       ),
                     ),
@@ -1095,7 +1095,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Text(
                       "Keluar",
                       style: TextStyle(
-                        color: Color.fromRGBO(244, 67, 54, 1),
+                        color: Color.fromRGBO(255, 82, 82, 1),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -1125,7 +1125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         child: const Text(
           "Hapus Akun",
           style: TextStyle(
-            color: Color.fromRGBO(244, 67, 54, 1),
+            color: Color.fromRGBO(255, 82, 82, 1),
             fontWeight: FontWeight.w600,
             fontSize: 14,
           ),
@@ -1159,7 +1159,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 20,
-                color: Color.fromRGBO(244, 67, 54, 1),
+                color: Color.fromRGBO(255, 82, 82, 1),
               ),
             ),
             const SizedBox(height: 10),
@@ -1185,7 +1185,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
             child: const Text(
               "Hapus Akun",
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              style: TextStyle(color: Color.fromRGBO(255, 82, 82, 1), fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -1467,7 +1467,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         },
                   child: const Text(
                     "Konfirmasi Hapus",
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: Color.fromRGBO(255, 82, 82, 1)),
                   ),
                 ),
               ],
@@ -1735,7 +1735,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         },
                   child: const Text(
                     "Hapus Akun",
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(color: Color.fromRGBO(255, 82, 82, 1)),
                   ),
                 ),
               ],
