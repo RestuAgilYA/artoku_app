@@ -202,33 +202,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
                     Positioned(
-                      top: 80,
-                      left: 30,
+                      top: 60,
+                      left: 0,
+                      right: 0,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: const Icon(
-                              Icons.arrow_back,
+                          // Logo ArtoKu
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
                               color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/icon_ArtoKu.png',
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
                           const Text(
-                            "Buat Akun",
+                            "Buat Akun Baru",
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 8),
                           const Text(
-                            "Mulai perjalanan finansialmu",
+                            "Mulai perjalanan finansial Anda",
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 16,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],

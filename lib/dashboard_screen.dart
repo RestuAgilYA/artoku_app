@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -117,6 +118,69 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return "User";
   }
 
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.exit_to_app, color: primaryColor, size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Keluar Aplikasi?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Apakah Anda yakin ingin keluar dari aplikasi?',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text(
+                'Batal',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Ya, Keluar',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    // Handle null safety: return false if dialog dismissed without choice
+    return result ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -126,29 +190,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (user == null)
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(user),
-                Transform.translate(
-                  offset: const Offset(0, -30),
-                  child: _buildQuickMenu(isDark),
-                ),
-                const SizedBox(height: 10),
-                _buildTransactionList(isDark, textColor, user),
-                const SizedBox(height: 100),
-              ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) return;
+        final shouldPop = await _showExitConfirmationDialog(context);
+        if (shouldPop && context.mounted) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeader(user),
+                  Transform.translate(
+                    offset: const Offset(0, -30),
+                    child: _buildQuickMenu(isDark),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildTransactionList(isDark, textColor, user),
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: _buildCustomFAB(),
+        bottomNavigationBar: _buildBottomAppBar(isDark),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: _buildCustomFAB(),
-      bottomNavigationBar: _buildBottomAppBar(isDark),
     );
   }
 
@@ -290,7 +364,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             final prefs = await SharedPreferences.getInstance();
                             setState(() {
                               _isExpenseVisible = !_isExpenseVisible;
-                              prefs.setBool('isExpenseVisible', _isExpenseVisible);
+                              prefs.setBool(
+                                'isExpenseVisible',
+                                _isExpenseVisible,
+                              );
                             });
                           },
                         ),
@@ -693,7 +770,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

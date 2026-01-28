@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:artoku_app/services/ui_helper.dart';
 import 'package:artoku_app/app_lock_setup_page.dart';
 import 'package:artoku_app/forgot_password_screen.dart';
@@ -31,17 +33,46 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
   late AppLinks _appLinks;
   StreamSubscription<Uri>? _linkSubscription;
 
+  // [BARU] Variabel untuk Biometric
+  final LocalAuthentication _localAuth = LocalAuthentication();
+  bool _biometricAvailable = false;
+  bool _isAuthenticating = false; // Flag untuk mencegah auth ganda
+  bool _unlocked = false; // Flag untuk mencegah auth setelah unlock
+  bool _userCancelledBiometric = false; // Flag untuk mencegah auto-trigger setelah cancel
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _initDeepLinkListener(); // Inisialisasi listener link
+    _initDeepLinkListener();
+    _checkBiometric();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hanya trigger biometrik saat kembali dari background JIKA:
+    // 1. Biometrik tersedia
+    // 2. Tidak sedang proses autentikasi
+    // 3. Belum unlock
+    // 4. User TIDAK cancel biometrik sebelumnya (agar bisa input PIN)
+    if (state == AppLifecycleState.resumed && 
+        _biometricAvailable && 
+        !_isAuthenticating && 
+        !_unlocked &&
+        !_userCancelledBiometric) {
+      // Delay kecil untuk memastikan UI siap
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted && !_unlocked && !_userCancelledBiometric) {
+          _authenticateWithBiometric();
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _linkSubscription?.cancel(); // Bersihkan listener
+    _linkSubscription?.cancel();
     super.dispose();
   }
 
@@ -49,7 +80,6 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
   Future<void> _initDeepLinkListener() async {
     _appLinks = AppLinks();
 
-    // 1. Cek jika aplikasi dibuka DARI MATI (Cold Start) melalui link
     try {
       final Uri? initialUri = await _appLinks.getInitialLink();
       if (initialUri != null) {
@@ -59,7 +89,6 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
       // Abaikan error saat cek initial link
     }
 
-    // 2. Cek jika aplikasi dibuka DARI BACKGROUND (Resume) melalui link
     _linkSubscription = _appLinks.uriLinkStream.listen((Uri? uri) {
       if (uri != null) {
         _handleDeepLink(uri);
@@ -67,6 +96,94 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
     }, onError: (err) {
       // debugPrint("Deep Link Error: $err");
     });
+  }
+
+  // --- [BARU] LOGIC BIOMETRIC AUTHENTICATION ---
+  Future<void> _checkBiometric() async {
+    try {
+      final bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      final bool isDeviceSupported = await _localAuth.isDeviceSupported();
+      
+      if (canCheckBiometrics && isDeviceSupported) {
+        final List<BiometricType> availableBiometrics = 
+            await _localAuth.getAvailableBiometrics();
+        
+        if (availableBiometrics.isNotEmpty) {
+          if (!mounted) return;
+          setState(() {
+            _biometricAvailable = true;
+          });
+          // Auto-trigger biometric saat pertama kali
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted && !_unlocked) {
+            await _authenticateWithBiometric();
+          }
+        }
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _biometricAvailable = false;
+      });
+    }
+  }
+
+  Future<void> _authenticateWithBiometric() async {
+    // Guard: jangan jalankan jika sudah unlock atau sedang proses
+    if (_isAuthenticating || _unlocked) return;
+
+    setState(() {
+      _isAuthenticating = true;
+    });
+
+    try {
+      final bool didAuthenticate = await _localAuth.authenticate(
+        localizedReason: 'Gunakan sidik jari untuk membuka aplikasi',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+
+      if (didAuthenticate && mounted) {
+        // Berhasil! Set flag unlock dan panggil callback
+        _unlocked = true;
+        widget.onUnlockSuccess();
+        return; // PENTING: Return langsung, jangan lanjut ke finally
+      }
+      
+      // Jika tidak authenticate (user cancel), set flag agar tidak auto-trigger lagi
+      if (!didAuthenticate && mounted) {
+        setState(() {
+          _userCancelledBiometric = true;
+        });
+      }
+    } on PlatformException catch (e) {
+      // User membatalkan atau error lainnya
+      if (mounted) {
+        setState(() {
+          _userCancelledBiometric = true; // User cancel, jangan auto-trigger lagi
+        });
+        
+        if (e.code == 'NotAvailable' || e.code == 'NotEnrolled') {
+          UIHelper.showError(context, "Biometrik tidak tersedia. Silakan gunakan PIN.");
+        }
+        // Untuk cancel biasa, tidak perlu tampilkan error
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _userCancelledBiometric = true;
+        });
+        UIHelper.showError(context, "Autentikasi biometrik gagal. Silakan gunakan PIN.");
+      }
+    } finally {
+      if (mounted && !_unlocked) {
+        setState(() {
+          _isAuthenticating = false;
+        });
+      }
+    }
   }
 
   Future<void> _handleDeepLink(Uri uri) async {
@@ -531,6 +648,49 @@ class _AppLockScreenState extends State<AppLockScreen> with WidgetsBindingObserv
                 ),
               ),
             ),
+            
+            // Biometric Button (hanya muncul jika tersedia)
+            if (_biometricAvailable) ...[
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: _isAuthenticating ? null : () {
+                  // Reset flag cancel agar bisa trigger ulang
+                  setState(() {
+                    _userCancelledBiometric = false;
+                  });
+                  _authenticateWithBiometric();
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(_isAuthenticating ? 0.1 : 0.2),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.5),
+                      width: 2,
+                    ),
+                  ),
+                  child: _isAuthenticating
+                      ? const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Padding(
+                            padding: EdgeInsets.all(8.0),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      : const Icon(
+                          Icons.fingerprint,
+                          size: 40,
+                          color: Colors.white,
+                        ),
+                ),
+              ),
+            ],
+            
             const SizedBox(height: 20),
             
             // PIN Display

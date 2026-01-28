@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dashboard_screen.dart';
 import 'register_screen.dart';
@@ -22,8 +21,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  final LocalAuthentication auth = LocalAuthentication();
 
   Future<void> _loginWithFirebase() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
@@ -86,71 +83,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // BIOMETRIK
-  Future<void> _handleBiometricLogin() async {
-    bool canCheckBiometrics = await auth.canCheckBiometrics;
-    if (!canCheckBiometrics) {
-      _showAlert(
-        "Info",
-        "Perangkat tidak mendukung biometrik.",
-        isError: false,
-      );
-      return;
-    }
-
-    try {
-      bool authenticated = await auth.authenticate(
-        localizedReason: 'Scan sidik jari untuk masuk',
-        options: const AuthenticationOptions(biometricOnly: true),
-      );
-
-      if (authenticated && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Biometrik Valid! (Mode Demo)")),
-        );
-        // Note: Untuk production, Anda harus menyimpan token user secara aman
-        // dan memvalidasi token tersebut ke Firebase.
-      }
-    } catch (e) {
-      print(e);
-    }
-  }
-
-  Future<void> _showAlert(
-    String title,
-    String message, {
-    bool isError = false,
-  }) {
-    return showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(
-              isError ? Icons.error : Icons.info,
-              color: isError ? Colors.red : primaryColor,
-            ),
-            const SizedBox(width: 10),
-            Text(
-              title,
-              style: TextStyle(
-                color: isError ? Colors.red : Colors.black,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Oke"),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -191,25 +123,53 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     Positioned(
-                      top: 80,
-                      left: 30,
+                      top: 60,
+                      left: 0,
+                      right: 0,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            "Selamat\nDatang!",
+                        children: [
+                          // Logo ArtoKu
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/icon_ArtoKu.png',
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            "Selamat Datang!",
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
                             ),
                           ),
-                          SizedBox(height: 10),
-                          Text(
-                            "Masuk untuk melanjutkan",
+                          const SizedBox(height: 8),
+                          const Text(
+                            "Kelola keuangan Anda dengan mudah",
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 16,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
@@ -309,26 +269,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 25),
 
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildSocialButton(
-                            imagePath: 'assets/images/google_logo.png',
-                            label: "Google",
-                            onTap: () async {
-                              setState(() => _isLoading = true);
-                              await AuthService.signInWithGoogle(context);
-                              if (mounted) setState(() => _isLoading = false);
-                            },
-                          ),
-                          const SizedBox(width: 15),
-                          _buildSocialButton(
-                            icon: Icons.fingerprint,
-                            label: "Biometrik",
-                            color: Colors.purple,
-                            onTap: _handleBiometricLogin,
-                          ),
-                        ],
+                      // Tombol Google Login
+                      _buildSocialButton(
+                        imagePath: 'assets/images/google_logo.png',
+                        label: "Login dengan Google",
+                        onTap: () async {
+                          setState(() => _isLoading = true);
+                          await AuthService.signInWithGoogle(context);
+                          if (mounted) setState(() => _isLoading = false);
+                        },
                       ),
 
                       const Spacer(),
@@ -435,6 +384,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (imagePath != null)
               Image.asset(imagePath, height: 24, width: 24)

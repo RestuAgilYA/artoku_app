@@ -116,6 +116,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   bool _isLocked = false;
   DateTime? _pausedTime;
   DateTime? _lastThemeChange;
+  DateTime? _lastUnlockTime; // [FIX] Track waktu unlock terakhir untuk mencegah re-lock segera
 
   @override
   void initState() {
@@ -145,6 +146,15 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      // Jangan set pause time jika sedang theme change
+      // Karena theme change juga trigger lifecycle events
+      if (_lastThemeChange != null) {
+        final sinceTheme = DateTime.now().difference(_lastThemeChange!);
+        if (sinceTheme.inSeconds < 2) {
+          // Baru saja theme change, skip set pause time
+          return;
+        }
+      }
       _pausedTime = DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
       _handleAppResume();
@@ -153,10 +163,15 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
 
   // Fungsi ini sekarang akan dipanggil ketika themeNotifier berubah
   void _onThemeChanged() {
-    setState(() {
-      _themeChanged = true;
-      _lastThemeChange = DateTime.now();
-    });
+    // Catat waktu theme change dan set flag
+    _themeChanged = true;
+    _lastThemeChange = DateTime.now();
+    
+    // Reset pause time agar tidak salah deteksi sebagai "app pause lama"
+    _pausedTime = null;
+    
+    // Reset unlock time untuk mencegah re-lock
+    _lastUnlockTime = DateTime.now();
   }
 
   void _handleAppResume() async {
@@ -168,14 +183,23 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
       return;
     }
 
-    // Jika resume terjadi segera (<1.2 detik) setelah theme change, abaikan lock
-    if (_themeChanged && _lastThemeChange != null) {
-      final sinceTheme = DateTime.now().difference(_lastThemeChange!);
-      if (sinceTheme.inMilliseconds < 1200) {
-        _themeChanged = false;
-        return;
+    // [FIX] Jangan lock lagi jika baru saja unlock (dalam 3 detik terakhir)
+    // Ini mencegah looping saat biometric dialog menutup
+    if (_lastUnlockTime != null) {
+      final sinceUnlock = DateTime.now().difference(_lastUnlockTime!);
+      if (sinceUnlock.inSeconds < 3) {
+        return; // Skip re-lock, user baru saja unlock
       }
-      _themeChanged = false;
+    }
+
+    // [FIX] Jika ada perubahan theme dalam 5 detik terakhir, abaikan lock
+    // Karena theme change bukan berarti user keluar aplikasi
+    if (_lastThemeChange != null) {
+      final sinceTheme = DateTime.now().difference(_lastThemeChange!);
+      if (sinceTheme.inSeconds < 5) {
+        _themeChanged = false;
+        return; // Skip re-lock, hanya theme change
+      }
     }
 
     // Check apakah app di-pause lebih dari 30 detik
@@ -185,8 +209,15 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
         setState(() => _isLocked = true);
       }
     } else {
-      setState(() => _isLocked = true);
+      // Jika tidak ada pausedTime, kemungkinan app baru dibuka
+      // JANGAN lock jika baru theme change
+      if (!_themeChanged) {
+        setState(() => _isLocked = true);
+      }
     }
+    
+    // Reset flag theme changed setelah handle
+    _themeChanged = false;
   }
 
   @override
@@ -194,7 +225,11 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     if (_isLocked) {
       return AppLockScreen(
         onUnlockSuccess: () {
-          setState(() => _isLocked = false);
+          setState(() {
+            _isLocked = false;
+            _lastUnlockTime = DateTime.now(); // [FIX] Catat waktu unlock
+            _pausedTime = null; // [FIX] Reset pause time
+          });
         },
       );
     }
