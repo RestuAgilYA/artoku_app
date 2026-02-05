@@ -24,7 +24,7 @@
 
 | Dashboard | Analisis | Dompet |
 |:---:|:---:|:---:|
-| <img src="screenshoots\dashboard.png" width="200" alt="Dashboard"/> | <img src="screenshots\analisa.png" width="200" alt="Analisa"/> | <img src="screenshots\dompet.png" width="200" alt="Dompet"/> |
+| <img src="screenshoots\dashboard.png" width="200" alt="Dashboard"/> | <img src="screenshoots\analisa.png" width="200" alt="Analisa"/> | <img src="screenshoots\dompet.png" width="200" alt="Dompet"/> |
 
 *(Catatan: Screenshot diambil dari aplikasi ArtoKu)*
 
