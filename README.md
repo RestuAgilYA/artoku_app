@@ -22,9 +22,9 @@
 
 ## 📸 Screenshots
 
-| Dashboard | Analisis | Scan AI | Laporan PDF |
-|:---:|:---:|:---:|:---:|
-| <img src="screenshots/dashboard.png" width="200" alt="Dashboard"/> | <img src="screenshots/analysis.png" width="200" alt="Analisis"/> | <img src="screenshots/scan.png" width="200" alt="Scan AI"/> | <img src="screenshots/pdf.png" width="200" alt="PDF Report"/> |
+| Dashboard | Analisis | Dompet |
+|:---:|:---:|:---:|
+| <img src="screenshoots\dashboard.png" width="200" alt="Dashboard"/> | <img src="screenshots\analisa.png" width="200" alt="Analisa"/> | <img src="screenshots\dompet.png" width="200" alt="Dompet"/> |
 
 *(Catatan: Screenshot diambil dari aplikasi ArtoKu)*
 
