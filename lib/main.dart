@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // [IMPORT]
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
@@ -120,13 +120,12 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   bool _isLocked = false;
   DateTime? _pausedTime;
   DateTime? _lastThemeChange;
-  DateTime? _lastUnlockTime; // [FIX] Track waktu unlock terakhir untuk mencegah re-lock segera
+  DateTime? _lastUnlockTime;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // [PERBAIKAN] Tambahkan listener ini agar _onThemeChanged tidak warning & berfungsi
     themeNotifier.addListener(_onThemeChanged); 
     _checkAppLockStatus();
   }
@@ -134,7 +133,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    // [PERBAIKAN] Hapus listener saat dispose untuk mencegah memory leak
+    // Hapus listener saat dispose untuk mencegah memory leak
     themeNotifier.removeListener(_onThemeChanged); 
     super.dispose();
   }
@@ -150,12 +149,9 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // Jangan set pause time jika sedang theme change
-      // Karena theme change juga trigger lifecycle events
       if (_lastThemeChange != null) {
         final sinceTheme = DateTime.now().difference(_lastThemeChange!);
         if (sinceTheme.inSeconds < 2) {
-          // Baru saja theme change, skip set pause time
           return;
         }
       }
@@ -165,7 +161,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     }
   }
 
-  // Fungsi ini sekarang akan dipanggil ketika themeNotifier berubah
+  // Fungsi ini akan dipanggil ketika themeNotifier berubah
   void _onThemeChanged() {
     // Catat waktu theme change dan set flag
     _themeChanged = true;
@@ -187,22 +183,18 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
       return;
     }
 
-    // [FIX] Jangan lock lagi jika baru saja unlock (dalam 3 detik terakhir)
-    // Ini mencegah looping saat biometric dialog menutup
     if (_lastUnlockTime != null) {
       final sinceUnlock = DateTime.now().difference(_lastUnlockTime!);
       if (sinceUnlock.inSeconds < 3) {
-        return; // Skip re-lock, user baru saja unlock
+        return;
       }
     }
 
-    // [FIX] Jika ada perubahan theme dalam 5 detik terakhir, abaikan lock
-    // Karena theme change bukan berarti user keluar aplikasi
     if (_lastThemeChange != null) {
       final sinceTheme = DateTime.now().difference(_lastThemeChange!);
       if (sinceTheme.inSeconds < 5) {
         _themeChanged = false;
-        return; // Skip re-lock, hanya theme change
+        return;
       }
     }
 
@@ -231,8 +223,8 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
         onUnlockSuccess: () {
           setState(() {
             _isLocked = false;
-            _lastUnlockTime = DateTime.now(); // [FIX] Catat waktu unlock
-            _pausedTime = null; // [FIX] Reset pause time
+            _lastUnlockTime = DateTime.now(); // Catat waktu unlock 
+            _pausedTime = null; // Reset pause time
           });
         },
       );

@@ -1,6 +1,6 @@
 # ArtoKu - Smart Finance Manager 💰🚀
 
-![ArtoKu Banner](screenshoots/artoku_banner.png)
+![ArtoKu Banner](assets\images\icon_ArtoKu.png)
 
 **ArtoKu** adalah aplikasi manajemen keuangan pribadi berbasis **Flutter** yang dirancang untuk memudahkan pencatatan arus kas harian. Aplikasi ini mengintegrasikan kecerdasan buatan (**Gemini AI**) untuk mempercepat pencatatan transaksi melalui pemindaian struk dan input suara, serta menyediakan laporan keuangan yang komprehensif.
 
