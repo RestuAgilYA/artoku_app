@@ -181,6 +181,132 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return result ?? false;
   }
 
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                'Pilih Sumber Gambar',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        AiTransactionHelper.pickAndScanImage(
+                          context,
+                          ImageSource.camera,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            // ignore: deprecated_member_use
+                            color: primaryColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.camera_alt,
+                              size: 40,
+                              color: primaryColor,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Kamera',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        AiTransactionHelper.pickAndScanImage(
+                          context,
+                          ImageSource.gallery,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            // ignore: deprecated_member_use
+                            color: primaryColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.photo_library,
+                              size: 40,
+                              color: primaryColor,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Galeri',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -975,10 +1101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
-            onTap: () => AiTransactionHelper.pickAndScanImage(
-              context,
-              ImageSource.camera,
-            ),
+            onTap: () => _showImageSourceOptions(),
             child: _buildCircularIcon(Icons.camera_alt_outlined),
           ),
           const SizedBox(width: 12),

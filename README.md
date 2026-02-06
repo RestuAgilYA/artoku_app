@@ -32,7 +32,7 @@ Berikut adalah beberapa cuplikan dari fitur-fitur utama ArtoKu.
 | **Analisis Keuangan** | <img src="screenshoots\analisa.png" width="200"/> | Visualisasi data keuangan dengan grafik lingkaran (pie chart) untuk pengeluaran per kategori. |
 | **Manajemen Dompet** | <img src="screenshoots\dompet.png" width="200"/> | Kelola semua sumber dana Anda, dari tunai, rekening bank, hingga e-wallet di satu tempat. |
 | **Riwayat Transaksi** | <img src="screenshoots\riwayat.png" width="200"/> | Lihat daftar lengkap semua transaksi yang pernah Anda catat, lengkap dengan detailnya. |
-| **Input AI (Suara)** | <img src="screenshoots\input_ai_audio.png" width="200"/> | Cukup ucapkan transaksi Anda, dan biarkan Gemini AI mencatatnya secara otomatis. |
+| **Input AI (Suara & Gambar OCR)** | <img src="screenshoots\input ai audio.png" width="200"/> | <img src="screenshoots\input ai gambar.png" width="200"/> | Cukup ucapkan transaksi Anda, dan biarkan Gemini AI mencatatnya secara otomatis. |
 | **Laporan Keuangan** | <img src="screenshoots\laporan keuangan.png" width="200"/> <img src="screenshoots\export pdf.png" width="200"/> | Hasilkan laporan keuangan dalam format PDF atau CSV untuk dianalisis lebih lanjut. |
 | **Kunci Aplikasi** | <img src="screenshoots\kunci aplikasi.png" width="200"/> | Amankan data finansial Anda dengan lapisan keamanan tambahan berupa sidik jari atau PIN. |
 | **Profil Pengguna** | <img src="screenshoots\profile.png" width="200"/> | Atur informasi akun Anda, ubah foto profil, dan kelola preferensi aplikasi. |
