@@ -1,7 +1,5 @@
 # ArtoKu - Smart Finance Manager 💰🚀
 
-![ArtoKu Banner](screenshoots\icon_ArtoKu.png)
-
 **ArtoKu** adalah aplikasi manajemen keuangan pribadi berbasis **Flutter** yang dirancang untuk memudahkan pencatatan arus kas harian. Aplikasi ini mengintegrasikan kecerdasan buatan (**Gemini AI**) untuk mempercepat pencatatan transaksi melalui pemindaian struk dan input suara, serta menyediakan laporan keuangan yang komprehensif.
 
 [![Flutter](https://img.shields.io/badge/Built%20with-Flutter-02569B?style=for-the-badge&logo=flutter)](https://flutter.dev/)
@@ -35,7 +33,7 @@ Berikut adalah beberapa cuplikan dari fitur-fitur utama ArtoKu.
 | **Manajemen Dompet** | <img src="screenshoots\dompet.png" width="200"/> | Kelola semua sumber dana Anda, dari tunai, rekening bank, hingga e-wallet di satu tempat. |
 | **Riwayat Transaksi** | <img src="screenshoots\riwayat.png" width="200"/> | Lihat daftar lengkap semua transaksi yang pernah Anda catat, lengkap dengan detailnya. |
 | **Input AI (Suara)** | <img src="screenshoots\input_ai_audio.png" width="200"/> | Cukup ucapkan transaksi Anda, dan biarkan Gemini AI mencatatnya secara otomatis. |
-| **Laporan Keuangan** | <img src="screenshoots\laporan keuangan.png" width="200"/> | Hasilkan laporan keuangan dalam format PDF atau CSV untuk dianalisis lebih lanjut. |
+| **Laporan Keuangan** | <img src="screenshoots\laporan keuangan.png" width="200"/> <img src="screenshoots\laporan keuangan.png" width="200"/> | Hasilkan laporan keuangan dalam format PDF atau CSV untuk dianalisis lebih lanjut. |
 | **Kunci Aplikasi** | <img src="screenshoots\kunci aplikasi.png" width="200"/> | Amankan data finansial Anda dengan lapisan keamanan tambahan berupa sidik jari atau PIN. |
 | **Profil Pengguna** | <img src="screenshoots\profile.png" width="200"/> | Atur informasi akun Anda, ubah foto profil, dan kelola preferensi aplikasi. |
 
