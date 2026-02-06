@@ -1,137 +1,131 @@
 # ArtoKu - Smart Finance Manager 💰🚀
 
-![ArtoKu Banner](assets/images/icon_ArtoKu.png)
+![ArtoKu Banner](screenshoots/artoku_banner.png)
 
 **ArtoKu** adalah aplikasi manajemen keuangan pribadi berbasis **Flutter** yang dirancang untuk memudahkan pencatatan arus kas harian. Aplikasi ini mengintegrasikan kecerdasan buatan (**Gemini AI**) untuk mempercepat pencatatan transaksi melalui pemindaian struk dan input suara, serta menyediakan laporan keuangan yang komprehensif.
 
 [![Flutter](https://img.shields.io/badge/Built%20with-Flutter-02569B?style=for-the-badge&logo=flutter)](https://flutter.dev/)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?style=for-the-badge&logo=firebase)](https://firebase.google.com/)
-[![Gemini AI](https://img.shields.io/badge/Powered%20by-Gemini%20AI-8E75B2?style=for-the-badge&logo=google)](https://deepmind.google/technologies/gemini/)
+[![Gemini AI](https://img.shields.io/badge/Powered%20by-Gemini%20AI-8E75B2?style=for-the-badge&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
 
 ## ✨ Fitur Unggulan
 
 * **🤖 Integrasi AI (Gemini):**
-    * **Scan Struk:** Foto struk belanja, AI akan otomatis mengekstrak total harga, kategori, dan nama item.
-    * **Voice Input:** Perintah suara (contoh: *"Beli kopi 20 ribu pakai gopay"*), AI akan mencatatnya ke kategori dan dompet yang tepat.
-* **📊 Analisis Keuangan:** Visualisasi pengeluaran dan pemasukan menggunakan Pie Chart dan Bar Chart yang interaktif.
-* **📄 Laporan PDF:** Ekspor laporan keuangan bulanan ke dalam format PDF siap cetak.
-* **👛 Manajemen Dompet:** Kelola berbagai sumber dana (Tunai, Bank, E-Wallet) dan fitur kunci dompet (*lock wallet*).
-* **🔔 Daily Reminder:** Notifikasi terjadwal (Siang & Malam) agar konsisten mencatat transaksi.
-* **🔐 Keamanan Tinggi:** Mendukung Login Email, Google Sign-In, dan **Biometrik** (Fingerprint/Face ID).
-* **🎨 Tampilan Modern:** Mendukung **Dark Mode** dan Light Mode yang elegan.
+    * **Scan Struk:** Foto struk belanja, dan AI akan otomatis mengekstrak total harga, kategori, dan nama item.
+    * **Voice Input:** Ucapkan transaksi Anda (contoh: *"Beli kopi 20 ribu pakai gopay"*), dan AI akan mencatatnya ke kategori dan dompet yang tepat.
+* **📊 Analisis Keuangan:** Visualisasikan pengeluaran dan pemasukan menggunakan Pie Chart dan Bar Chart yang interaktif untuk mendapatkan wawasan finansial.
+* **📄 Laporan PDF & CSV:** Ekspor laporan keuangan bulanan ke dalam format PDF yang siap cetak atau CSV untuk diolah lebih lanjut.
+* **👛 Manajemen Dompet:** Kelola berbagai sumber dana (Tunai, Bank, E-Wallet) dan amankan dengan fitur kunci dompet (*lock wallet*).
+* **🔔 Pengingat Harian:** Notifikasi terjadwal (siang & malam) untuk membantu Anda konsisten dalam mencatat setiap transaksi.
+* **🔐 Keamanan Berlapis:**
+    * Login dengan Email & Password atau Google Sign-In.
+    * Amankan aplikasi dengan **Kunci Biometrik** (Sidik Jari/Face ID).
+* **🎨 Tampilan Modern & Adaptif:**
+    * Antarmuka yang bersih dan intuitif.
+    * Dukungan penuh untuk **Dark Mode** dan Light Mode.
 
-## 📸 Screenshots
+## 📸 Galeri Aplikasi
 
 | Dashboard | Analisis | Dompet |
 |:---:|:---:|:---:|
-| <img src="screenshoots\dashboard.png" width="200" alt="Dashboard"/> | <img src="screenshoots\analisa.png" width="200" alt="Analisa"/> | <img src="screenshoots\dompet.png" width="200" alt="Dompet"/> |
+| <img src="screenshoots/dashboard.png" width="200" alt="Dashboard"/> | <img src="screenshoots/analisa.png" width="200" alt="Analisa"/> | <img src="screenshoots/dompet.png" width="200" alt="Dompet"/> |
 
 *(Catatan: Screenshot diambil dari aplikasi ArtoKu)*
 
-## 🛠️ Tech Stack
+## 🛠️ Teknologi & Dependensi
 
-* **Framework:** Flutter (Dart)
-* **Backend:** Firebase Auth, Cloud Firestore
-* **AI:** Google Generative AI SDK (`google_generative_ai`)
-* **State Management:** `setState` & `StreamBuilder` (Realtime Updates)
-* **Packages Utama:**
-    * `fl_chart` (Grafik)
-    * `flutter_local_notifications` (Notifikasi Lokal)
-    * `pdf` & `printing` (Generate PDF)
-    * `local_auth` (Biometrik)
-    * `image_picker` (Kamera/Galeri)
-    * `flutter_dotenv` (Keamanan API Key)
-    * `speech_to_text` (Input Suara)
+*   **Framework:** Flutter (Dart)
+*   **Backend:** Firebase (Authentication, Cloud Firestore)
+*   **AI:** Google Generative AI SDK (`google_generative_ai`)
+*   **State Management:** `setState` & `StreamBuilder` untuk pembaruan data real-time.
+*   **Dependensi Utama:**
+    *   `fl_chart` untuk grafik dan analisis.
+    *   `flutter_local_notifications` untuk notifikasi terjadwal.
+    *   `pdf` & `printing` untuk pembuatan laporan PDF.
+    *   `local_auth` untuk autentikasi biometrik.
+    *   `image_picker` & `speech_to_text` untuk input AI.
+    *   `flutter_dotenv` untuk keamanan kunci API.
+    *   `google_sign_in` untuk autentikasi Google.
 
-## 🚀 Cara Instalasi & Menjalankan
+## 🚀 Memulai
 
-Ikuti langkah ini untuk menjalankan ArtoKu di komputer lokal Anda:
+Ikuti langkah-langkah ini untuk menjalankan ArtoKu di lingkungan pengembangan lokal Anda.
 
-### 1. Prerequisites
-Pastikan Anda telah menginstall:
-* [Flutter SDK](https://docs.flutter.dev/get-started/install)
-* Android Studio / VS Code
-* Git
+### 1. Prasyarat
+Pastikan Anda telah menginstal perangkat lunak berikut:
+*   [Flutter SDK](https://docs.flutter.dev/get-started/install) (versi 3.x atau lebih baru)
+*   Android Studio / VS Code
+*   Git
 
 ### 2. Clone Repository
 ```bash
-git clone [https://github.com/RestuAgilYA/artoku_app.git](https://github.com/RestuAgilYA/artoku_app.git)
+git clone https://github.com/RestuAgilYA/artoku_app.git
 cd artoku_app
-
 ```
 
-### 3. Install Dependencies
-
+### 3. Instal Dependensi
+Jalankan perintah berikut untuk mengunduh semua paket yang dibutuhkan.
 ```bash
 flutter pub get
-
 ```
 
-### 4. Konfigurasi Environment (.env)
-
-Buat file bernama `.env` di *root folder* project (sejajar dengan `pubspec.yaml`), lalu isi dengan API Key Gemini Anda:
-
+### 4. Konfigurasi Lingkungan (.env)
+Buat file bernama `.env` di direktori root proyek (sejajar dengan `pubspec.yaml`), lalu isi dengan API Key Gemini Anda.
 ```env
+# Amankan kunci API Anda dengan menyimpannya di sini
 GEMINI_API_KEY=*********************
-
 ```
-
-*Dapatkan API Key di [Google AI Studio](https://aistudio.google.com/).*
+*Anda bisa mendapatkan API Key di [Google AI Studio](https://aistudio.google.com/).*
 
 ### 5. Konfigurasi Firebase
-
-Aplikasi ini membutuhkan konfigurasi Firebase project Anda sendiri:
-
-1. Buat project baru di [Firebase Console](https://console.firebase.google.com/).
-2. Aktifkan **Authentication** (Email/Password & Google).
-3. Aktifkan **Firestore Database**.
-4. Download file konfigurasi:
-* **Android:** `google-services.json` -> letakkan di `android/app/`.
-* **iOS:** `GoogleService-Info.plist` -> letakkan di `ios/Runner/`.
-
-
+Aplikasi ini memerlukan proyek Firebase untuk berfungsi.
+1.  Buat proyek baru di [Firebase Console](https://console.firebase.google.com/).
+2.  Aktifkan layanan **Authentication** (dengan provider Email/Password & Google).
+3.  Aktifkan layanan **Cloud Firestore**.
+4.  Daftarkan aplikasi Android dan/atau iOS Anda.
+5.  Unduh file konfigurasi dan letakkan di direktori yang sesuai:
+    *   **Android:** `google-services.json` -> letakkan di `android/app/`.
+    *   **iOS:** `GoogleService-Info.plist` -> letakkan di `ios/Runner/`.
 
 ### 6. Jalankan Aplikasi
-
+Sekarang Anda siap menjalankan aplikasi!
 ```bash
 flutter run
-
 ```
 
-## 📂 Struktur Folder
-
+## 📂 Struktur Proyek
+Struktur direktori `lib` dirancang agar mudah dipahami dan dikelola.
 ```
 lib/
-├── services/
-│   ├── gemini_service.dart      # Logic Integrasi AI
-│   ├── notification_service.dart # Logic Notifikasi Lokal
-│   ├── auth_service.dart        # Logic Google Sign-In
-│   ├── ui_helper.dart           # Custom Dialog & Toast
-│   └── logger_service.dart      # Error Logging
-├── ..._screen.dart              # Halaman UI (Dashboard, Login, Report, dll)
-├── ..._sheet.dart               # Bottom Sheets (Add Transaction)
-├── pdf_helper.dart              # Generator Laporan PDF
-└── main.dart                    # Entry point & Config
-
+├── services/               # Logika bisnis dan layanan pihak ketiga
+│   ├── gemini_service.dart     # Integrasi dengan Gemini AI
+│   ├── notification_service.dart # Pengelola notifikasi lokal
+│   ├── auth_service.dart       # Proses autentikasi
+│   ├── ui_helper.dart          # Komponen UI (Dialog, Toast)
+│   └── logger_service.dart     # Pencatatan error
+│
+├── *_screen.dart           # Berbagai halaman utama aplikasi
+├── *_sheet.dart            # Komponen Bottom Sheet
+├── helpers/                # Class bantuan (PDF, CSV)
+│   ├── pdf_helper.dart
+│   └── csv_helper.dart
+│
+└── main.dart               # Titik masuk utama aplikasi
 ```
 
 ## 🤝 Kontribusi
-
-Kontribusi sangat diterima! Jika Anda menemukan bug atau ingin menambahkan fitur:
-
-1. Fork repository ini.
-2. Buat branch fitur baru (`git checkout -b fitur-keren`).
-3. Commit perubahan Anda (`git commit -m 'Menambahkan fitur keren'`).
-4. Push ke branch (`git push origin fitur-keren`).
-5. Buat Pull Request.
+Kontribusi sangat kami hargai! Jika Anda menemukan bug atau ingin menambahkan fitur baru, silakan:
+1.  **Fork** repository ini.
+2.  Buat **Branch** baru (`git checkout -b fitur-baru`).
+3.  **Commit** perubahan Anda (`git commit -m 'Menambahkan fitur baru'`).
+4.  **Push** ke branch Anda (`git push origin fitur-baru`).
+5.  Buat **Pull Request**.
 
 ## 👨‍💻 Author
-
 **Restu Agil Yuli Arjun**
-
-* LinkedIn: [Restu Agil Yuli Arjun](https://www.linkedin.com/in/restuagilya/)
-* GitHub: [@RestuAgilYA](https://github.com/RestuAgilYA)
-* Instagram: [@_restuagil](https://www.instagram.com/_restuagil/)
-* Email: [restuagil.ya@gmail.com](mailto:restuagil.ya@gmail.com)
+*   LinkedIn: [Restu Agil Yuli Arjun](https://www.linkedin.com/in/restuagilya/)
+*   GitHub: [@RestuAgilYA](https://github.com/RestuAgilYA)
+*   Instagram: [@_restuagil](https://www.instagram.com/_restuagil/)
+*   Email: [restuagil.ya@gmail.com](mailto:restuagil.ya@gmail.com)
 
 ---
