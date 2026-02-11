@@ -32,6 +32,7 @@ class WelcomeScreen extends StatelessWidget {
                 height: 200,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  // ignore: deprecated_member_use
                   color: Colors.white.withOpacity(0.1),
                 ),
               ),
@@ -44,6 +45,7 @@ class WelcomeScreen extends StatelessWidget {
                 height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
+                  // ignore: deprecated_member_use
                   color: Colors.white.withOpacity(0.05),
                 ),
               ),
@@ -60,6 +62,7 @@ class WelcomeScreen extends StatelessWidget {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.1),
                   ),
                   // Pastikan file icon_ArtoKu.png sudah ada di folder assets/images/
@@ -96,6 +99,7 @@ class WelcomeScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.8),
                     height: 1.5,
                   ),
@@ -145,6 +149,7 @@ class WelcomeScreen extends StatelessWidget {
                           Text(
                             "Sudah punya akun? ",
                             style: TextStyle(
+                              // ignore: deprecated_member_use
                               color: Colors.white.withOpacity(0.7),
                             ),
                           ),

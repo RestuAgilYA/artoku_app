@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // [IMPORT]
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
@@ -11,6 +11,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final ValueNotifier<ThemeMode> themeNotifier = ValueNotifier(ThemeMode.light);
+bool _themeChanged = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,8 +21,10 @@ void main() async {
   // [BARU] Load .env
   try {
     await dotenv.load(fileName: ".env");
+    // ignore: avoid_print
     print("Env loaded successfully");
   } catch (e) {
+    // ignore: avoid_print
     print("Error loading .env: $e");
   }
 
@@ -32,8 +35,10 @@ void main() async {
 
     // Update value notifier sesuai data yang disimpan
     themeNotifier.value = isDarkMode ? ThemeMode.dark : ThemeMode.light;
+    // ignore: avoid_print
     print("Tema dimuat: ${isDarkMode ? 'Dark' : 'Light'}");
   } catch (e) {
+    // ignore: avoid_print
     print("Gagal memuat tema: $e");
   }
 
@@ -90,7 +95,7 @@ class MyApp extends StatelessWidget {
                 );
               }
               if (snapshot.hasData) {
-                return const _AppLockWrapper(child: DashboardScreen());
+                return _AppLockWrapper(child: DashboardScreen());
               }
               return const WelcomeScreen();
             },
@@ -114,17 +119,22 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     with WidgetsBindingObserver {
   bool _isLocked = false;
   DateTime? _pausedTime;
+  DateTime? _lastThemeChange;
+  DateTime? _lastUnlockTime;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    themeNotifier.addListener(_onThemeChanged); 
     _checkAppLockStatus();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Hapus listener saat dispose untuk mencegah memory leak
+    themeNotifier.removeListener(_onThemeChanged); 
     super.dispose();
   }
 
@@ -139,10 +149,29 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      if (_lastThemeChange != null) {
+        final sinceTheme = DateTime.now().difference(_lastThemeChange!);
+        if (sinceTheme.inSeconds < 2) {
+          return;
+        }
+      }
       _pausedTime = DateTime.now();
     } else if (state == AppLifecycleState.resumed) {
       _handleAppResume();
     }
+  }
+
+  // Fungsi ini akan dipanggil ketika themeNotifier berubah
+  void _onThemeChanged() {
+    // Catat waktu theme change dan set flag
+    _themeChanged = true;
+    _lastThemeChange = DateTime.now();
+    
+    // Reset pause time agar tidak salah deteksi sebagai "app pause lama"
+    _pausedTime = null;
+    
+    // Reset unlock time untuk mencegah re-lock
+    _lastUnlockTime = DateTime.now();
   }
 
   void _handleAppResume() async {
@@ -154,6 +183,21 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
       return;
     }
 
+    if (_lastUnlockTime != null) {
+      final sinceUnlock = DateTime.now().difference(_lastUnlockTime!);
+      if (sinceUnlock.inSeconds < 3) {
+        return;
+      }
+    }
+
+    if (_lastThemeChange != null) {
+      final sinceTheme = DateTime.now().difference(_lastThemeChange!);
+      if (sinceTheme.inSeconds < 5) {
+        _themeChanged = false;
+        return;
+      }
+    }
+
     // Check apakah app di-pause lebih dari 30 detik
     if (_pausedTime != null) {
       final duration = DateTime.now().difference(_pausedTime!);
@@ -161,8 +205,15 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
         setState(() => _isLocked = true);
       }
     } else {
-      setState(() => _isLocked = true);
+      // Jika tidak ada pausedTime, kemungkinan app baru dibuka
+      // JANGAN lock jika baru theme change
+      if (!_themeChanged) {
+        setState(() => _isLocked = true);
+      }
     }
+    
+    // Reset flag theme changed setelah handle
+    _themeChanged = false;
   }
 
   @override
@@ -170,7 +221,11 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     if (_isLocked) {
       return AppLockScreen(
         onUnlockSuccess: () {
-          setState(() => _isLocked = false);
+          setState(() {
+            _isLocked = false;
+            _lastUnlockTime = DateTime.now(); // Catat waktu unlock 
+            _pausedTime = null; // Reset pause time
+          });
         },
       );
     }

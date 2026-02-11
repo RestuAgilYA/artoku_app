@@ -34,10 +34,32 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                
+                <!-- Sesuaikan dengan domain tempat Anda menghosting assetlinks.json -->
+                <data android:scheme="https" android:host="artoku-app.firebaseapp.com" />
+                <data android:scheme="https" android:host="artoku-app.web.app" />
+            </intent-filter>
+
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                
+                <data android:scheme="https" />
+                <data android:host="artoku-20712.firebaseapp.com" />
+                <data android:pathPrefix="/reset-pin" />
+            </intent-filter>
+
         </activity>
 
         <meta-data

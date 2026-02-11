@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:artoku_app/services/ui_helper.dart';
+import 'package:artoku_app/dashboard_screen.dart';
 
 class DetailTransactionScreen extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -52,6 +53,7 @@ class DetailTransactionScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(25),
               decoration: BoxDecoration(
+                // ignore: deprecated_member_use
                 color: color.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
@@ -89,6 +91,7 @@ class DetailTransactionScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
+                    // ignore: deprecated_member_use
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
@@ -134,13 +137,7 @@ class DetailTransactionScreen extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                onPressed: () => _confirmDelete(
-                  context,
-                  data['id'],
-                  data['amount'],
-                  data['walletId'],
-                  type,
-                ),
+                onPressed: () => _showDeleteConfirmation(context, data['id'], data['amount'], data['walletId'], type),
               ),
             ),
           ],
@@ -180,130 +177,148 @@ class DetailTransactionScreen extends StatelessWidget {
     );
   }
 
-  // LOGIKA HAPUS (Copy logic dari Dashboard agar konsisten)
-  void _confirmDelete(
+  // Show confirmation dialog, then success dialog and navigate as requested
+  void _showDeleteConfirmation(
     BuildContext context,
     String? docId,
     dynamic amountRaw,
-    String? walletIdRaw, // Kita ubah nama param biar gak bingung
+    String? walletIdRaw,
     String typeRaw,
   ) {
     if (docId == null) return;
 
-    showDialog(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+    showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Hapus Transaksi?"),
-        content: const Text(
-          "Data akan dihapus permanen. Saldo dompet akan dikembalikan (jika data valid).",
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                // ignore: deprecated_member_use
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 48,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              "Hapus Transaksi?",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Tindakan ini tidak dapat dibatalkan. Saldo dompet akan dikembalikan sesuai transaksi.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: messageColor),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Batal"),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text(
+              "Batal",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              Navigator.pop(context); // Tutup Dialog dulu
-              
-              final user = FirebaseAuth.instance.currentUser;
-              if (user == null) return;
-
-              try {
-                // 1. AMBIL DATA FRESH DARI DATABASE (PENTING!)
-                // Kita tidak percaya data dari layar sebelumnya, kita ambil langsung dari sumbernya.
-                final docRef = FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .collection('transactions')
-                    .doc(docId);
-                
-                final docSnap = await docRef.get();
-                
-                if (!docSnap.exists) {
-                   UIHelper.showError(context, "Error: Data transaksi tidak ditemukan di DB!");
-                   return;
-                }
-
-                final data = docSnap.data() as Map<String, dynamic>;
-                
-                // 2. DIAGNOSA DATA
-                String? realWalletId = data['walletId'];
-                String realType = data['type'] ?? 'expense';
-                
-                // Parsing Amount Super Aman (Handle String/Int/Double)
-                double realAmount = 0;
-                if (data['amount'] is int) {
-                  realAmount = (data['amount'] as int).toDouble();
-                } else if (data['amount'] is double) {
-                  realAmount = data['amount'];
-                } else if (data['amount'] is String) {
-                  realAmount = double.tryParse(data['amount']) ?? 0;
-                }
-
-                // Cek Tipe Bahasa (Inggris/Indo)
-                bool isExpense = (realType == 'expense' || realType == 'Pengeluaran');
-
-                // 3. DEBUGGING: TAMPILKAN APA YANG DIBACA APLIKASI
-                // Jika walletId null, kita akan tahu disini.
-                if (realWalletId == null || realWalletId.isEmpty) {
-                   UIHelper.showError(context, "Gagal Refund: ID Dompet Kosong di Database!");
-                   // Tetap hapus history biar gak nyangkut, tapi saldo ga balik
-                   await docRef.delete();
-                   Navigator.pop(context); 
-                   return;
-                }
-
-                // 4. EKSEKUSI REFUND
-                final walletRef = FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .collection('wallets')
-                    .doc(realWalletId);
-                
-                // Cek apakah dompetnya beneran ada?
-                final walletSnap = await walletRef.get();
-                if (!walletSnap.exists) {
-                   UIHelper.showError(context, "Gagal Refund: Dompet dengan ID '$realWalletId' sudah dihapus!");
-                   await docRef.delete();
-                   Navigator.pop(context);
-                   return;
-                }
-
-                // Hitung Refund
-                double refund = isExpense ? realAmount : -realAmount;
-
-                // Update Saldo
-                await walletRef.update({
-                  'balance': FieldValue.increment(refund),
-                });
-
-                // Hapus Transaksi
-                await docRef.delete();
-
-                if (context.mounted) {
-                  Navigator.pop(context); // Balik ke Dashboard
-                  
-                  // PESAN SUKSES DENGAN DETAIL
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("Sukses! Saldo dikembalikan: Rp ${realAmount.toStringAsFixed(0)} ke Dompet."),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-
-              } catch (e) {
-                if (context.mounted) {
-                  UIHelper.showError(context, "Error Sistem: $e");
-                }
-              }
-            },
-            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              "Hapus",
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed != true) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      try {
+        final docRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('transactions')
+            .doc(docId);
+        final docSnap = await docRef.get();
+        if (!docSnap.exists) {
+          // ignore: use_build_context_synchronously
+          UIHelper.showError(context, "Error: Data transaksi tidak ditemukan di DB!");
+          return;
+        }
+        final data = docSnap.data() as Map<String, dynamic>;
+        String? realWalletId = data['walletId'];
+        String realType = data['type'] ?? 'expense';
+        double realAmount = 0;
+        if (data['amount'] is int) {
+          realAmount = (data['amount'] as int).toDouble();
+        } else if (data['amount'] is double) {
+          realAmount = data['amount'];
+        } else if (data['amount'] is String) {
+          realAmount = double.tryParse(data['amount']) ?? 0;
+        }
+        bool isExpense = (realType == 'expense' || realType == 'Pengeluaran');
+        if (realWalletId == null || realWalletId.isEmpty) {
+          // ignore: use_build_context_synchronously
+          UIHelper.showError(context, "Gagal Refund: ID Dompet Kosong di Database!");
+          await docRef.delete();
+          return;
+        }
+        final walletRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('wallets')
+            .doc(realWalletId);
+        final walletSnap = await walletRef.get();
+        if (!walletSnap.exists) {
+          // ignore: use_build_context_synchronously
+          UIHelper.showError(context, "Gagal Refund: Dompet dengan ID '$realWalletId' sudah dihapus!");
+          await docRef.delete();
+          return;
+        }
+        double refund = isExpense ? realAmount : -realAmount;
+        await walletRef.update({
+          'balance': FieldValue.increment(refund),
+        });
+        await docRef.delete();
+
+        // Show success pop up (UIHelper.showSuccess), then go to dashboard
+        if (context.mounted) {
+          await UIHelper.showSuccess(
+            context,
+            "Terhapus",
+            "Transaksi telah dihapus.",
+          );
+          // Setelah pop up sukses, navigasi ke dashboard
+          if (context.mounted) {
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(builder: (context) => const DashboardScreen()),
+              (Route<dynamic> route) => false,
+            );
+          }
+        }
+      } catch (e) {
+        // ignore: use_build_context_synchronously
+        UIHelper.showError(context, "Error Sistem: $e");
+      }
+    });
   }
 }

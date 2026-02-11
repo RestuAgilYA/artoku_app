@@ -69,6 +69,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
           // 5. TAMPILKAN DIALOG SUKSES
           await showDialog(
+            // ignore: use_build_context_synchronously
             context: context,
             barrierDismissible: false,
             builder: (ctx) => AlertDialog(
@@ -112,11 +113,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
       }
     } on FirebaseAuthException catch (e) {
       String message = "Gagal Daftar.";
-      if (e.code == 'weak-password')
+      if (e.code == 'weak-password') {
         message = "Password terlalu lemah (min 6 karakter).";
-      else if (e.code == 'email-already-in-use')
+      } else if (e.code == 'email-already-in-use')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Email sudah terdaftar. Silakan login.";
       else if (e.code == 'invalid-email')
+        // ignore: curly_braces_in_flow_control_structures
         message = "Format email tidak valid.";
 
       if (mounted) _showAlert("Gagal", message, isError: true);
@@ -196,39 +199,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         width: 120,
                         height: 120,
                         decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
                           color: Colors.white.withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
                       ),
                     ),
                     Positioned(
-                      top: 80,
-                      left: 30,
+                      top: 60,
+                      left: 0,
+                      right: 0,
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: const Icon(
-                              Icons.arrow_back,
+                          // Logo ArtoKu
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
                               color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  // ignore: deprecated_member_use
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/images/icon_ArtoKu.png',
+                                width: 60,
+                                height: 60,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
                           const Text(
-                            "Buat Akun",
+                            "Buat Akun Baru",
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
                             ),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 8),
                           const Text(
-                            "Mulai perjalanan finansialmu",
+                            "Mulai perjalanan finansial Anda",
+                            textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 16,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
@@ -334,6 +359,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
+                                // ignore: deprecated_member_use
                                 color: Colors.black.withOpacity(0.05),
                                 blurRadius: 10,
                                 offset: const Offset(0, 5),

@@ -64,21 +64,64 @@ class TransferHistoryTab extends StatelessWidget {
                   );
                   return false; // Jangan hapus item
                 } else { // Geser ke kiri (Hapus)
+                  final isDark = Theme.of(context).brightness == Brightness.dark;
+                  final Color messageColor = isDark ? Colors.white70 : Colors.black87;
                   return await showDialog(
                     context: context,
+                    barrierDismissible: false,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        title: const Text("Konfirmasi Hapus"),
-                        content: const Text(
-                            "Anda yakin ingin menghapus riwayat transfer ini? Saldo akan dikembalikan."),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(15),
+                              decoration: BoxDecoration(
+                                // ignore: deprecated_member_use
+                                color: Colors.red.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.warning_amber_rounded,
+                                color: Colors.red,
+                                size: 48,
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            const Text(
+                              "Hapus Transfer?",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 20,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              "Tindakan ini tidak dapat dibatalkan. Data transfer dan perubahan saldo akan dikembalikan.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 15, color: messageColor),
+                            ),
+                          ],
+                        ),
                         actions: <Widget>[
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text("Batal"),
+                            child: const Text(
+                              "Batal",
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                           ),
                           TextButton(
                             onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                            child: const Text(
+                              "Hapus",
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ],
                       );
@@ -121,6 +164,7 @@ class TransferHistoryTab extends StatelessWidget {
                   });
 
                   UIHelper.showSuccess(
+                    // ignore: use_build_context_synchronously
                     context,
                     "Berhasil",
                     "Riwayat transfer telah dihapus.",
@@ -215,7 +259,7 @@ class TransferHistoryTab extends StatelessWidget {
 class DetailTransferDialog extends StatelessWidget {
   final TransferModel transfer;
 
-  const DetailTransferDialog({required this.transfer});
+  const DetailTransferDialog({super.key, required this.transfer});
 
   @override
   Widget build(BuildContext context) {
@@ -274,6 +318,7 @@ class DetailTransferDialog extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
                         color: const Color(0xFF0F4C5C).withOpacity(0.1),
                         shape: BoxShape.circle,
                       ),
@@ -355,9 +400,10 @@ class DetailTransferDialog extends StatelessWidget {
 class TransferFundDialog extends StatefulWidget {
   final TransferModel? transfer;
 
-  const TransferFundDialog({this.transfer});
+  const TransferFundDialog({super.key, this.transfer});
 
   @override
+  // ignore: library_private_types_in_public_api
   _TransferFundDialogState createState() => _TransferFundDialogState();
 }
 
@@ -655,7 +701,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
         : items;
 
     return DropdownButtonFormField<WalletModel>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
       isExpanded: true,
       decoration: InputDecoration(

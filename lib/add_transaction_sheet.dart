@@ -36,7 +36,7 @@ class ThousandsSeparatorInputFormatter extends TextInputFormatter {
 
 
 class AddTransactionSheet extends StatefulWidget {
-  // Tambahkan parameter ini untuk menerima hasil analisa Gemini
+  // Parameter untuk menerima hasil analisa Gemini
   final Map<String, dynamic>? transactionData;
   final String? transactionId;
 
@@ -214,7 +214,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   void _deleteCategory(String category) async {
-    // ... (Kode delete category sama seperti sebelumnya, tidak diubah) ...
+    // ... (delete category) ...
     List<String> currentList = _isExpense
         ? _expenseCategories
         : _incomeCategories;
@@ -246,10 +246,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
     if (confirm && user != null) {
       setState(() {
-        if (_isExpense)
+        if (_isExpense) {
           _expenseCategories.remove(category);
-        else
+        } else {
           _incomeCategories.remove(category);
+        }
 
         if (_selectedCategory == category) {
           _selectedCategory = _isExpense
@@ -268,7 +269,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   void _showAddCategoryDialog() {
-    // ... (Kode add category sama seperti sebelumnya) ...
+    // ... (add category) ...
     TextEditingController catController = TextEditingController();
     showDialog(
       context: context,
@@ -295,10 +296,11 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
               String newCat = catController.text.trim();
               if (newCat.isNotEmpty && user != null) {
                 setState(() {
-                  if (_isExpense)
+                  if (_isExpense) {
                     _expenseCategories.add(newCat);
-                  else
+                  } else {
                     _incomeCategories.add(newCat);
+                  }
                   _selectedCategory = newCat;
                 });
                 String field = _isExpense
@@ -311,6 +313,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                     .collection('users')
                     .doc(user!.uid)
                     .set({field: listToSave}, SetOptions(merge: true));
+                // ignore: use_build_context_synchronously
                 if (mounted) Navigator.pop(context);
               }
             },
@@ -371,13 +374,14 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
   }
 
   Future<void> _saveTransaction() async {
-    // ... (Logika save sama persis, tidak ada yang diubah logikanya) ...
+    // ... (Logika save) ...
     if (_amountController.text.isEmpty ||
         _noteController.text.trim().isEmpty ||
         _selectedWalletId == null ||
         user == null) {
-      if (_noteController.text.trim().isEmpty)
+      if (_noteController.text.trim().isEmpty) {
         UIHelper.showError(context, "Catatan Kosong. Mohon isi catatan.");
+      }
       return;
     }
     double amount =
@@ -386,7 +390,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
     if (_isExpense && widget.transactionId == null) {
       if (_selectedWalletBalance != null && amount > _selectedWalletBalance!) {
-        // Tampilkan warning saldo tidak cukup (copy logika lama)
+        // Tampilkan warning saldo tidak cukup
         await showDialog(
           context: context,
           builder: (ctx) {
@@ -415,7 +419,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Dompet '${_selectedWalletName}' hanya memiliki saldo:"),
+                  Text("Dompet '$_selectedWalletName' hanya memiliki saldo:"),
                   const SizedBox(height: 5),
                   Text(
                     _formatSimpleRupiah(_selectedWalletBalance!),
@@ -494,14 +498,16 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
         'category': _selectedCategory,
         'walletId': _selectedWalletId,
         'walletName': _selectedWalletName,
+        // ignore: deprecated_member_use
         'color': _isExpense ? Colors.red.value : incomeColor.value,
         'createdAt': FieldValue.serverTimestamp(),
       };
 
-      if (widget.transactionId != null)
+      if (widget.transactionId != null) {
         batch.update(transactionRef, dataToSave);
-      else
+      } else {
         batch.set(transactionRef, dataToSave);
+      }
 
       final newWalletRef = firestore
           .collection('users')
@@ -525,8 +531,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       }
     } catch (e, stack) {
       LoggerService.error("Gagal simpan transaksi", e, stack);
-      if (mounted)
+      if (mounted) {
         UIHelper.showError(context, "Gagal menyimpan data database.");
+      }
     }
   }
 
@@ -612,11 +619,12 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                   return data['isLocked'] != true;
                 }).toList();
 
-                if (activeWallets.isEmpty)
+                if (activeWallets.isEmpty) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Text("Tidak ada dompet aktif."),
                   );
+                }
 
                 // --- SMART WALLET SELECTION ---
                 // Logic ini dijalankan jika user belum memilih dompet secara manual
@@ -761,6 +769,7 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                 Text(
                   "(Tahan untuk hapus)",
                   style: TextStyle(
+                    // ignore: deprecated_member_use
                     color: hintColor.withOpacity(0.5),
                     fontSize: 10,
                     fontStyle: FontStyle.italic,
@@ -820,8 +829,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
                             firstDate: DateTime(2020),
                             lastDate: DateTime(2030),
                           );
-                          if (picked != null)
+                          if (picked != null) {
                             setState(() => _selectedDate = picked);
+                          }
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(

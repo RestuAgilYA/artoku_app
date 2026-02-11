@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_screen.dart'; // Pastikan ini sesuai nama file dashboard kamu
 import 'package:artoku_app/services/ui_helper.dart';
 import 'package:artoku_app/services/logger_service.dart';
@@ -37,6 +38,12 @@ class AuthService {
             'createdAt': DateTime.now().toIso8601String(),
           });
         }
+
+        // Simpan info untuk login biometrik dengan Google
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('biometric_login_type', 'google');
+        await prefs.setString('biometric_email', user.email ?? '');
+        await prefs.remove('biometric_pass'); // Hapus password jika ada
 
         if (context.mounted) {
           // Ganti snackbar dengan UIHelper agar konsisten

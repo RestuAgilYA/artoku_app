@@ -38,12 +38,14 @@ class TransferFundDialog extends StatefulWidget {
   const TransferFundDialog({super.key, this.transfer});
 
   @override
+  // ignore: library_private_types_in_public_api
   _TransferFundDialogState createState() => _TransferFundDialogState();
 }
 
 class _TransferFundDialogState extends State<TransferFundDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
+  final _noteController = TextEditingController();
 
   WalletModel? _sourceWallet;
   WalletModel? _destinationWallet;
@@ -60,6 +62,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
   @override
   void dispose() {
     _amountController.dispose();
+    _noteController.dispose();
     super.dispose();
   }
 
@@ -90,6 +93,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             _destinationWallet = _wallets.firstWhere((w) => w.id == widget.transfer!.destinationWalletId);
             _amountController.text =
                 NumberFormat('#,###', 'id_ID').format(widget.transfer!.amount);
+            _noteController.text = widget.transfer!.notes;
           }
           _isLoading = false;
         });
@@ -167,6 +171,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             'destinationWalletName': _destinationWallet!.name,
             'amount': amount,
             'timestamp': FieldValue.serverTimestamp(),
+            'notes': _noteController.text.trim(),
           });
         } else {
           transferDocRef = usersRef.collection('transfers').doc();
@@ -177,13 +182,16 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             'destinationWalletName': _destinationWallet!.name,
             'amount': amount,
             'timestamp': FieldValue.serverTimestamp(),
+            'notes': _noteController.text.trim(),
           });
         }
 
         await batch.commit();
 
+      // ignore: use_build_context_synchronously
         Navigator.of(context).pop(); // Close dialog on success
         UIHelper.showSuccess(
+          // ignore: use_build_context_synchronously
             context, "Berhasil", "Dana telah ${_isEditMode ? 'diperbarui' : 'dipindahkan'}.");
       } catch (e) {
         if (mounted) {
@@ -267,6 +275,15 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         return null;
                       },
                     ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _noteController,
+                      decoration: const InputDecoration(
+                        labelText: 'Catatan (Opsional)',
+                        border: OutlineInputBorder(),
+                      ),
+                      maxLines: 2,
+                    ),
                   ],
                 ),
               ),
@@ -293,7 +310,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
     required List<WalletModel> items,
   }) {
     return DropdownButtonFormField<WalletModel>(
-      value: value,
+      initialValue: value,
       onChanged: onChanged,
       isExpanded: true,
       decoration: InputDecoration(

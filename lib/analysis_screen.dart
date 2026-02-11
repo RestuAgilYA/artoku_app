@@ -158,8 +158,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                         )
                         .snapshots(),
               builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting)
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
+                }
 
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return _buildEmptyState("Belum ada data transaksi.");
@@ -180,18 +181,20 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   DateTime date = t.toDate();
 
                   if (date.year != _selectedMonth.year ||
-                      date.month != _selectedMonth.month)
+                      date.month != _selectedMonth.month) {
                     continue;
+                  }
 
                   hasDataThisMonth = true;
                   double amount = (data['amount'] ?? 0).toDouble();
                   String type = data['type'] ?? 'expense';
 
                   if (_viewMode == 2) {
-                    if (type == 'income')
+                    if (type == 'income') {
                       totalIncome += amount;
-                    else
+                    } else {
                       totalExpense += amount;
+                    }
                   } else {
                     String category = data['category'] ?? 'Lainnya';
                     if (dataMap.containsKey(category)) {
@@ -203,8 +206,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                   }
                 }
 
-                if (!hasDataThisMonth)
+                if (!hasDataThisMonth) {
                   return _buildEmptyState("Tidak ada data di bulan ini.");
+                }
 
                 if (_viewMode == 2) {
                   dataMap = {
@@ -212,8 +216,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                     'Pengeluaran': totalExpense,
                   };
                   grandTotal = totalIncome + totalExpense;
-                  if (grandTotal == 0)
+                  if (grandTotal == 0) {
                     return _buildEmptyState("Nol transaksi bulan ini.");
+                  }
                 }
 
                 var sortedEntries = dataMap.entries.toList()
@@ -263,6 +268,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                               borderRadius: BorderRadius.circular(15),
                               boxShadow: [
                                 BoxShadow(
+                                  // ignore: deprecated_member_use
                                   color: Colors.black.withOpacity(0.03),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
@@ -441,8 +447,8 @@ class _PieChartWidgetState extends State<_PieChartWidget> {
               sections: List.generate(widget.sortedEntries.length, (i) {
               final isTouched = i == _touchedIndex;
               
-              // Membesar saat disentuh (Logic lama Anda)
-              final fontSize = isTouched ? 16.0 : 12.0; // Sedikit saya kecilkan font touch agar nominal muat
+              // Membesar saat disentuh
+              final fontSize = isTouched ? 16.0 : 12.0;
               final radius = isTouched ? 60.0 : 50.0;
 
               String key = widget.sortedEntries[i].key;

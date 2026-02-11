@@ -38,50 +38,34 @@ class DetailTransferScreen extends StatelessWidget {
         padding: const EdgeInsets.all(25),
         child: Column(
           children: [
-            const SizedBox(height: 20),
-
-            // 1. ICON BESAR
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F4C5C).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.swap_horiz,
-                color: Color(0xFF0F4C5C),
-                size: 40,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // 2. JUDUL & NOMINAL
+            // 1. HEADER
             Text(
               '${transfer.sourceWalletName} → ${transfer.destinationWalletName}',
               style: TextStyle(fontSize: 18, color: Colors.grey.shade500),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
+            // 2. NOMINAL
             Text(
               formattedAmount,
               style: const TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: Colors.green,
+                color: Color(0xFF0F4C5C),
               ),
+              textAlign: TextAlign.center,
             ),
-
-            const SizedBox(height: 40),
-
+            const SizedBox(height: 30),
             // 3. KARTU DETAIL
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: cardColor,
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
+                    // ignore: deprecated_member_use
                     color: Colors.black.withOpacity(0.05),
                     blurRadius: 10,
                     offset: const Offset(0, 5),
@@ -97,6 +81,8 @@ class DetailTransferScreen extends StatelessWidget {
                   const Divider(height: 30),
                   _buildDetailRow("Ke Dompet", transfer.destinationWalletName,
                       textColor),
+                  const Divider(height: 30),
+                  _buildDetailRow("Catatan", transfer.notes.trim().isNotEmpty ? transfer.notes : '-', textColor),
                 ],
               ),
             ),
@@ -162,29 +148,72 @@ class DetailTransferScreen extends StatelessWidget {
   }
 
   void _confirmDelete(BuildContext context, TransferModel transfer) {
-    showDialog(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+    showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Hapus Transfer?"),
-        content: const Text(
-          "Data akan dihapus permanen. Saldo dompet akan dikembalikan.",
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                // ignore: deprecated_member_use
+                color: Colors.red.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 48,
+              ),
+            ),
+            const SizedBox(height: 18),
+            const Text(
+              "Hapus Transfer?",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+                color: Colors.red,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              "Tindakan ini tidak dapat dibatalkan. Data transfer dan perubahan saldo akan dikembalikan.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: messageColor),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Batal"),
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text(
+              "Batal",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              Navigator.pop(context); // Tutup Dialog dulu
-              _deleteTransfer(context, transfer);
-            },
-            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              "Hapus",
+              style: TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed == true) {
+        // ignore: use_build_context_synchronously
+        await _deleteTransfer(context, transfer);
+      }
+    });
   }
 
   Future<void> _deleteTransfer(
@@ -222,12 +251,14 @@ class DetailTransferScreen extends StatelessWidget {
       await batch.commit();
 
       if (context.mounted) {
-        Navigator.pop(context); // Balik ke halaman sebelumnya
-        UIHelper.showSuccess(
+        await UIHelper.showSuccess(
           context,
-          "Berhasil",
+          "Terhapus",
           "Riwayat transfer telah dihapus.",
         );
+        if (context.mounted) {
+          Navigator.pop(context); // Tutup Detail Screen (Balik ke Riwayat/Wallet)
+        }
       }
     } catch (e) {
       if (context.mounted) {

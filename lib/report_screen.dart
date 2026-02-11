@@ -3,6 +3,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'pdf_helper.dart';
+import 'csv_helper.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -18,6 +19,7 @@ class _ReportScreenState extends State<ReportScreen> {
   bool _isExpense = true;
   DateTime _selectedMonth = DateTime.now();
   bool _isExporting = false;
+  bool _isExportingCsv = false;
 
   Future<void> _exportToPdf() async {
     if (user == null) return;
@@ -65,6 +67,55 @@ class _ReportScreenState extends State<ReportScreen> {
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  Future<void> _exportToCsv() async {
+    if (user == null) return;
+    setState(() => _isExportingCsv = true);
+
+    try {
+      // 1. Fetch both collections in parallel
+      final transactionFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transactions')
+          .get();
+      final transferFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transfers')
+          .get();
+
+      final results = await Future.wait([transactionFuture, transferFuture]);
+      final transactionSnapshot = results[0] as QuerySnapshot;
+      final transferSnapshot = results[1] as QuerySnapshot;
+
+      if (!mounted) return;
+
+      // 2. Check if there is any data at all
+      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
+        setState(() => _isExportingCsv = false);
+        return;
+      }
+
+      // 3. Call the CSV helper
+      await CsvHelper.generateMonthlyReport(
+        _selectedMonth,
+        transactionSnapshot.docs,
+        transferSnapshot.docs,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Gagal mengekspor CSV: $e")));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isExportingCsv = false);
       }
     }
   }
@@ -228,8 +279,9 @@ class _ReportScreenState extends State<ReportScreen> {
                                   showTitles: true,
                                   reservedSize: 40,
                                   getTitlesWidget: (value, meta) {
-                                    if (value == 0)
+                                    if (value == 0) {
                                       return const SizedBox.shrink();
+                                    }
                                     return Text(
                                       _formatCompactCurrency(value),
                                       style: TextStyle(
@@ -271,6 +323,7 @@ class _ReportScreenState extends State<ReportScreen> {
                               show: true,
                               drawVerticalLine: false,
                               getDrawingHorizontalLine: (value) => FlLine(
+                                // ignore: deprecated_member_use
                                 color: Colors.grey.withOpacity(0.1),
                                 strokeWidth: 1,
                               ),
@@ -353,6 +406,7 @@ class _ReportScreenState extends State<ReportScreen> {
               height: 150,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                // ignore: deprecated_member_use
                 color: Colors.white.withOpacity(0.1),
               ),
             ),
@@ -377,22 +431,47 @@ class _ReportScreenState extends State<ReportScreen> {
                       fontSize: 18,
                     ),
                   ),
-                  _isExporting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : IconButton(
-                          icon: const Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.white,
-                          ),
-                          onPressed: _exportToPdf,
-                        ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // CSV Button
+                      _isExportingCsv
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : IconButton(
+                              icon: const Icon(
+                                Icons.table_chart_outlined,
+                                color: Colors.white,
+                              ),
+                              tooltip: 'Export CSV',
+                              onPressed: _exportToCsv,
+                            ),
+                      // PDF Button
+                      _isExporting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : IconButton(
+                              icon: const Icon(
+                                Icons.picture_as_pdf,
+                                color: Colors.white,
+                              ),
+                              tooltip: 'Export PDF',
+                              onPressed: _exportToPdf,
+                            ),
+                    ],
+                  ),
                 ],
               ),
 
@@ -456,6 +535,7 @@ class _ReportScreenState extends State<ReportScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),

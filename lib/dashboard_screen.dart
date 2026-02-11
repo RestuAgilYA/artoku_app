@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
@@ -11,6 +12,8 @@ import 'detail_transaction_screen.dart';
 import 'all_transactions_screen.dart';
 import 'my_wallet_screen.dart';
 import 'package:artoku_app/services/ai_transaction_helper.dart';
+import 'package:artoku_app/services/ui_helper.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -29,8 +32,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadVisibilityPreference();
     _checkAndCreateDefaultWallets();
     _initTransactionStream();
+  }
+
+  Future<void> _loadVisibilityPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _isExpenseVisible = prefs.getBool('isExpenseVisible') ?? true;
+    });
   }
 
   void _initTransactionStream() {
@@ -107,38 +118,238 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return "User";
   }
 
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.exit_to_app, color: primaryColor, size: 28),
+              const SizedBox(width: 12),
+              const Text(
+                'Keluar Aplikasi?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              ),
+            ],
+          ),
+          content: const Text(
+            'Apakah Anda yakin ingin keluar dari aplikasi?',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
+              ),
+              child: const Text(
+                'Batal',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Ya, Keluar',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    // Handle null safety: return false if dialog dismissed without choice
+    return result ?? false;
+  }
+
+  void _showImageSourceOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                'Pilih Sumber Gambar',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        AiTransactionHelper.pickAndScanImage(
+                          context,
+                          ImageSource.camera,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            // ignore: deprecated_member_use
+                            color: primaryColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.camera_alt,
+                              size: 40,
+                              color: primaryColor,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Kamera',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 15),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                        AiTransactionHelper.pickAndScanImage(
+                          context,
+                          ImageSource.gallery,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        decoration: BoxDecoration(
+                          // ignore: deprecated_member_use
+                          color: primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            // ignore: deprecated_member_use
+                            color: primaryColor.withOpacity(0.3),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.photo_library,
+                              size: 40,
+                              color: primaryColor,
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Galeri',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black;
     final User? user = FirebaseAuth.instance.currentUser;
 
-    if (user == null)
+    if (user == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeader(user),
-                Transform.translate(
-                  offset: const Offset(0, -30),
-                  child: _buildQuickMenu(isDark),
-                ),
-                const SizedBox(height: 10),
-                _buildTransactionList(isDark, textColor, user),
-                const SizedBox(height: 100),
-              ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) return;
+        final shouldPop = await _showExitConfirmationDialog(context);
+        if (shouldPop && context.mounted) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        body: Stack(
+          children: [
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildHeader(user),
+                  Transform.translate(
+                    offset: const Offset(0, -30),
+                    child: _buildQuickMenu(isDark),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildTransactionList(isDark, textColor, user),
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+        floatingActionButton: _buildCustomFAB(),
+        bottomNavigationBar: _buildBottomAppBar(isDark),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      floatingActionButton: _buildCustomFAB(),
-      bottomNavigationBar: _buildBottomAppBar(isDark),
     );
   }
 
@@ -163,9 +374,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
             String type = data['type'] ?? 'expense';
 
             if (date.year == now.year && date.month == now.month) {
-              if (type == 'expense')
+              if (type == 'expense') {
                 thisMonthExpense += amount;
-              else if (type == 'income')
+              } else if (type == 'income')
+                // ignore: curly_braces_in_flow_control_structures
                 thisMonthIncome += amount;
             }
             if (date.year == now.year && date.month == now.month - 1) {
@@ -196,6 +408,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   height: 200,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.1),
                   ),
                 ),
@@ -208,6 +421,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   height: 150,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
+                    // ignore: deprecated_member_use
                     color: Colors.white.withOpacity(0.08),
                   ),
                 ),
@@ -276,9 +490,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             color: Colors.white70,
                             size: 20,
                           ),
-                          onPressed: () => setState(
-                            () => _isExpenseVisible = !_isExpenseVisible,
-                          ),
+                          onPressed: () async {
+                            final prefs = await SharedPreferences.getInstance();
+                            setState(() {
+                              _isExpenseVisible = !_isExpenseVisible;
+                              prefs.setBool(
+                                'isExpenseVisible',
+                                _isExpenseVisible,
+                              );
+                            });
+                          },
                         ),
                         const SizedBox(width: 10),
                         Text(
@@ -376,6 +597,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
+        // ignore: deprecated_member_use
         color: Colors.white.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -413,8 +635,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         int count = 0;
         if (snapshot.hasData) {
           count = snapshot.data!.docs.length;
-          for (var doc in snapshot.data!.docs)
+          for (var doc in snapshot.data!.docs){
             totalBalance += (doc['balance'] ?? 0).toDouble();
+          }
         }
         return Container(
           padding: const EdgeInsets.all(12),
@@ -454,6 +677,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Text(
                 "$count Akun Terhubung",
                 style: TextStyle(
+                  // ignore: deprecated_member_use
                   color: Colors.white.withOpacity(0.6),
                   fontSize: 9,
                 ),
@@ -474,6 +698,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(0.08),
             blurRadius: 15,
             offset: const Offset(0, 5),
@@ -515,7 +740,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }) {
     Color iconColor = isComingSoon ? Colors.grey : primaryColor;
     Color bgColor = isComingSoon
+        // ignore: deprecated_member_use
         ? Colors.grey.withOpacity(0.1)
+        // ignore: deprecated_member_use
         : primaryColor.withOpacity(0.1);
     return GestureDetector(
       onTap: onTap,
@@ -572,8 +799,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return StreamBuilder<QuerySnapshot>(
       stream: _transactionStream,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting)
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(height: 100);
+        }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return Center(
             child: Padding(
@@ -636,6 +864,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   data,
                   user,
                 );
+              // ignore: unnecessary_to_list_in_spreads
               }).toList(),
             ],
           ),
@@ -672,25 +901,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
             );
             return false;
           }
-          return await showDialog(
+          // Konfirmasi hapus swipe kiri - modern dialog
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+          final confirmed = await showDialog<bool>(
             context: context,
+            barrierDismissible: false,
             builder: (ctx) => AlertDialog(
-              title: const Text("Hapus?"),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      // ignore: deprecated_member_use
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    "Hapus Transaksi?",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                      color: Color.fromRGBO(183, 28, 28, 1),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    "Tindakan ini tidak dapat dibatalkan. Saldo dompet akan dikembalikan sesuai transaksi.",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 15, color: messageColor),
+                  ),
+                ],
+              ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text("Batal"),
+                  child: const Text(
+                    "Batal",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
                 TextButton(
                   onPressed: () => Navigator.pop(ctx, true),
                   child: const Text(
                     "Hapus",
-                    style: TextStyle(color: Colors.red),
+                    style: TextStyle(
+                      color: Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
             ),
           );
+          return confirmed == true;
         },
         background: Container(
           color: Colors.blue,
@@ -705,7 +980,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: const Icon(Icons.delete, color: Colors.white),
         ),
         onDismissed: (d) async {
-          // 1. Hapus Dokumen Transaksi
+          // Hapus dan refund saldo
           await FirebaseFirestore.instance
               .collection('users')
               .doc(user.uid)
@@ -713,27 +988,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
               .doc(docId)
               .delete();
 
-          // 2. Refund Saldo (LOGIC FIX - Support 2 Bahasa)
           if (rawData['walletId'] != null) {
             String type = rawData['type'] ?? 'expense';
-            // Pastikan amount jadi double agar aman
             double amount = (rawData['amount'] ?? 0).toDouble();
-
-            // --- PERBAIKAN DISINI ---
-            // Cek apakah tipe 'expense' ATAU 'Pengeluaran'
             bool isExpense = (type == 'expense' || type == 'Pengeluaran');
-
-            // Jika Expense dihapus -> Saldo Nambah (+)
-            // Jika Income dihapus -> Saldo Kurang (-)
             double refund = isExpense ? amount : -amount;
-            // ------------------------
-
             await FirebaseFirestore.instance
                 .collection('users')
                 .doc(user.uid)
                 .collection('wallets')
                 .doc(rawData['walletId'])
                 .update({'balance': FieldValue.increment(refund)});
+          }
+
+          // Pop up sukses, lalu kembali ke dashboard tanpa reload
+          if (context.mounted) {
+            await UIHelper.showSuccess(
+              // ignore: use_build_context_synchronously
+              context,
+              "Terhapus",
+              "Transaksi telah dihapus.",
+            );
+            // Tidak perlu pushAndRemoveUntil, cukup pop jika ada navigation stack
+            // Dismissible sudah otomatis menghapus item dari list
           }
         },
         child: Container(
@@ -742,6 +1019,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
+                // ignore: deprecated_member_use
                 color: Colors.black.withOpacity(0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
@@ -769,6 +1047,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
             leading: CircleAvatar(
+              // ignore: deprecated_member_use
               backgroundColor: color.withOpacity(0.1),
               radius: 24,
               child: Icon(Icons.monetization_on, color: color, size: 24),
@@ -804,25 +1083,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
+        // ignore: deprecated_member_use
         color: Theme.of(context).cardColor.withOpacity(0.95),
         borderRadius: BorderRadius.circular(50),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(0.15),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
         ],
+        // ignore: deprecated_member_use
         border: Border.all(color: Colors.grey.shade200.withOpacity(0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           GestureDetector(
-            onTap: () => AiTransactionHelper.pickAndScanImage(
-              context,
-              ImageSource.camera,
-            ),
+            onTap: () => _showImageSourceOptions(),
             child: _buildCircularIcon(Icons.camera_alt_outlined),
           ),
           const SizedBox(width: 12),
@@ -867,6 +1146,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
+        // ignore: deprecated_member_use
         border: Border.all(color: Colors.grey.shade300.withOpacity(0.3)),
         color: Theme.of(context).cardColor,
       ),

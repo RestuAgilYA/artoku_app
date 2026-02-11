@@ -126,6 +126,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
                 if (query.docs.isNotEmpty) {
                   if (mounted) {
+                    // ignore: use_build_context_synchronously
                     UIHelper.showError(context, "Nama dompet sudah ada. Silakan gunakan nama lain!");
                   }
                   return;
@@ -144,6 +145,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               Map<String, dynamic> data = {
                 'name': nameController.text,
                 'balance': balance,
+                // ignore: deprecated_member_use
                 'color': selectedColor.value,
                 'isLocked': document != null ? document['isLocked'] : false,
                 'createdAt': FieldValue.serverTimestamp(),
@@ -154,6 +156,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               } else {
                 await walletRef.doc(document.id).update(data);
               }
+              // ignore: use_build_context_synchronously
               Navigator.pop(context);
             },
             child: const Text("Simpan"),
@@ -176,6 +179,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     
     // Find first available color
     for (Color color in _presetColors) {
+      // ignore: deprecated_member_use
       if (!usedColors.contains(color.value)) {
         return color;
       }
@@ -245,6 +249,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         borderRadius: BorderRadius.circular(30),
         boxShadow: [
           BoxShadow(
+            // ignore: deprecated_member_use
             color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
@@ -358,6 +363,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         borderRadius: BorderRadius.circular(20),
                         boxShadow: [
                           BoxShadow(
+                            // ignore: deprecated_member_use
                             color: Colors.black.withOpacity(0.03),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
@@ -369,6 +375,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
+                              // ignore: deprecated_member_use
                               color: walletColor.withOpacity(0.1),
                               shape: BoxShape.circle,
                             ),
@@ -490,7 +497,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     .collection('wallets')
                     .doc(walletId)
                     .update({'isLocked': !currentStatus});
-                
+                // ignore: use_build_context_synchronously
                 Navigator.pop(context);
               },
               child: Text(currentStatus ? "Buka Kunci" : "Kunci"),
@@ -506,7 +513,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text("Hapus Dompet"),
+          title: const Text("Hapus Dompet?"),
           content: const Text(
             "Apakah Anda yakin ingin menghapus dompet ini? Tindakan ini tidak dapat dibatalkan.",
           ),
