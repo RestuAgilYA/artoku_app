@@ -7,6 +7,7 @@ import 'welcome_screen.dart';
 import 'dashboard_screen.dart';
 import 'app_lock_screen.dart';
 import 'notification_service.dart';
+import 'services/remote_config_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await NotificationService().init();
+  await RemoteConfigService().init();
 
   // [BARU] Load .env
   try {
@@ -121,6 +123,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   DateTime? _pausedTime;
   DateTime? _lastThemeChange;
   DateTime? _lastUnlockTime;
+  bool _updateChecked = false;
 
   @override
   void initState() {
@@ -226,9 +229,23 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
             _lastUnlockTime = DateTime.now(); // Catat waktu unlock 
             _pausedTime = null; // Reset pause time
           });
+          _checkForUpdate();
         },
       );
     }
+    // Check for update when not locked
+    if (!_updateChecked) {
+      _updateChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkForUpdate();
+      });
+    }
     return widget.child;
+  }
+
+  void _checkForUpdate() {
+    if (mounted) {
+      RemoteConfigService().checkForUpdate(context);
+    }
   }
 }

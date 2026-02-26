@@ -2269,6 +2269,73 @@ class _EditProfilePageState extends State<EditProfilePage> {
                             LengthLimitingTextInputFormatter(15),
                           ],
                         ),
+                        const SizedBox(height: 6),
+                        if (_phoneController.text.trim().isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4),
+                            child: Text(
+                              "Tambahkan No. Telp untuk terhubung ke ArtoBot",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ),
+                        if (_phoneController.text.trim().isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, top: 4),
+                            child: GestureDetector(
+                              onTap: () async {
+                                final phone = _phoneController.text.trim();
+                                String formattedPhone = phone;
+                                if (phone.startsWith('08')) {
+                                  formattedPhone = '62${phone.substring(1)}';
+                                }
+                                const message = "Halo";
+                                final Uri whatsappUrl = Uri.parse(
+                                  "https://wa.me/$formattedPhone?text=${Uri.encodeComponent(message)}",
+                                );
+                                try {
+                                  final bool launched = await launchUrl(
+                                    whatsappUrl,
+                                    mode: LaunchMode.externalApplication,
+                                  );
+                                  if (!launched && mounted) {
+                                    UIHelper.showError(
+                                      context,
+                                      "Tidak dapat membuka WhatsApp.",
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    UIHelper.showError(
+                                      context,
+                                      "Pastikan WhatsApp sudah terinstall.",
+                                    );
+                                  }
+                                }
+                              },
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.chat,
+                                    size: 16,
+                                    color: const Color(0xFF25D366),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    "Chat ArtoBot via WhatsApp",
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: const Color(0xFF25D366),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 40),

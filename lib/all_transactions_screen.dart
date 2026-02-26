@@ -255,13 +255,35 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                   return _buildEmptyState("Tidak ada transaksi di bulan ini.");
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 15,
-                  ),
-                  itemCount: filteredDocs.length,
-                  itemBuilder: (context, index) {
+                // Calculate totals for display
+                double totalExpenseFiltered = 0;
+                double totalIncomeFiltered = 0;
+                for (var doc in filteredDocs) {
+                  var data = doc.data() as Map<String, dynamic>;
+                  double amt = (data['amount'] ?? 0).toDouble();
+                  if (data['type'] == 'expense') {
+                    totalExpenseFiltered += amt;
+                  } else if (data['type'] == 'income') {
+                    totalIncomeFiltered += amt;
+                  }
+                }
+
+                return Column(
+                  children: [
+                    // Summary row above list
+                    _buildSummaryRow(
+                      totalExpenseFiltered,
+                      totalIncomeFiltered,
+                      textColor,
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        itemCount: filteredDocs.length,
+                        itemBuilder: (context, index) {
                     var doc = filteredDocs[index];
                     var data = doc.data() as Map<String, dynamic>;
 
@@ -306,6 +328,9 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
                       cardColor,
                     );
                   },
+                ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -313,6 +338,86 @@ class _AllTransactionsScreenState extends State<AllTransactionsScreen> {
         ],
       ),
     );
+  }
+
+  // WIDGET SUMMARY ROW (Pengeluaran kiri, Pemasukan kanan)
+  Widget _buildSummaryRow(double totalExpense, double totalIncome, Color textColor) {
+    // For "Semua" tab: show both expense (left) and income (right)
+    // For specific tab with search: show only that type's total on the right
+    if (_selectedType == 'all') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.arrow_upward, color: Colors.red, size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  _formatRupiah(totalExpense),
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Icon(Icons.arrow_downward, color: const Color(0xFF00897B), size: 16),
+                const SizedBox(width: 4),
+                Text(
+                  _formatRupiah(totalIncome),
+                  style: const TextStyle(
+                    color: Color(0xFF00897B),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Income or Expense tab - show filtered total on the right
+      final bool isExpenseTab = _selectedType == 'expense';
+      final double total = isExpenseTab ? totalExpense : totalIncome;
+      final Color color = isExpenseTab ? Colors.red : const Color(0xFF00897B);
+      final String label = _searchQuery.isNotEmpty
+          ? 'Total${isExpenseTab ? ' pengeluaran' : ' pemasukan'} "$_searchQuery":'
+          : 'Total ${isExpenseTab ? 'pengeluaran' : 'pemasukan'}:';
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: textColor.withOpacity(0.6),
+                  fontSize: 12,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _formatRupiah(total),
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   // WIDGET ITEM TRANSAKSI (DENGAN SWIPE POP-UP FIX)

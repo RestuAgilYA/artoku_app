@@ -14,7 +14,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   DateTime _selectedMonth = DateTime.now();
 
-  // 0 = Pengeluaran, 1 = Pemasukan, 2 = Banding (Arus Kas)
+  // 0 = Pengeluaran, 1 = Pemasukan, 2 = Banding (Arus Kas), 3 = Piutang/Utang
   int _viewMode = 0;
 
   // Warna Kategori Pengeluaran
@@ -133,6 +133,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
                 _buildToggleButton("Keluar", 0, const Color(0xFF0F4C5C)),
                 _buildToggleButton("Masuk", 1, const Color(0xFF00897B)),
                 _buildToggleButton("Banding", 2, Colors.blueAccent),
+                _buildToggleButton("Piutang", 3, const Color(0xFFFF8F00)),
               ],
             ),
           ),
@@ -141,7 +142,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
           // 3. KONTEN CHART
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
+            child: _viewMode == 3
+                ? _buildDebtAnalysis(textColor)
+                : StreamBuilder<QuerySnapshot>(
               stream: _viewMode == 2
                   ? FirebaseFirestore.instance
                         .collection('users')
@@ -347,6 +350,298 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
     );
   }
 
+  // ==================== PIUTANG/UTANG ANALYSIS ====================
+  Widget _buildDebtAnalysis(Color textColor) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .collection('debts')
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("Belum ada data piutang/utang.");
+        }
+
+        final docs = snapshot.data!.docs;
+
+        // Filter by selected month
+        final monthDocs = docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final Timestamp? t = data['createdAt'] as Timestamp?;
+          if (t == null) return false;
+          final date = t.toDate();
+          return date.year == _selectedMonth.year && date.month == _selectedMonth.month;
+        }).toList();
+
+        if (monthDocs.isEmpty) {
+          return _buildEmptyState("Tidak ada data piutang/utang di bulan ini.");
+        }
+
+        double totalPiutangActive = 0;
+        double totalUtangActive = 0;
+        double totalPiutangPaid = 0;
+        double totalUtangPaid = 0;
+        int countPiutang = 0;
+        int countUtang = 0;
+
+        for (var doc in monthDocs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final amount = (data['amount'] ?? 0).toDouble();
+          final isPaid = data['isPaid'] == true;
+          if (data['type'] == 'piutang') {
+            countPiutang++;
+            if (isPaid) {
+              totalPiutangPaid += amount;
+            } else {
+              totalPiutangActive += amount;
+            }
+          } else {
+            countUtang++;
+            if (isPaid) {
+              totalUtangPaid += amount;
+            } else {
+              totalUtangActive += amount;
+            }
+          }
+        }
+
+        final double netPosition = totalPiutangActive - totalUtangActive;
+
+        // Pie chart data
+        final List<MapEntry<String, double>> chartEntries = [];
+        if (totalPiutangActive > 0) {
+          chartEntries.add(MapEntry('Piutang Aktif', totalPiutangActive));
+        }
+        if (totalUtangActive > 0) {
+          chartEntries.add(MapEntry('Utang Aktif', totalUtangActive));
+        }
+        if (totalPiutangPaid > 0) {
+          chartEntries.add(MapEntry('Piutang Lunas', totalPiutangPaid));
+        }
+        if (totalUtangPaid > 0) {
+          chartEntries.add(MapEntry('Utang Lunas', totalUtangPaid));
+        }
+
+        final Map<String, Color> debtColors = {
+          'Piutang Aktif': const Color(0xFF00897B),
+          'Utang Aktif': Colors.red,
+          'Piutang Lunas': const Color(0xFF80CBC4),
+          'Utang Lunas': const Color(0xFFEF9A9A),
+        };
+
+        final double chartTotal = chartEntries.fold(0, (sum, e) => sum + e.value);
+
+        return Column(
+          children: [
+            // Pie Chart
+            if (chartEntries.isNotEmpty && chartTotal > 0)
+              _DebtPieChart(
+                chartEntries: chartEntries,
+                chartTotal: chartTotal,
+                debtColors: debtColors,
+                netPosition: netPosition,
+                textColor: textColor,
+              ),
+
+            const SizedBox(height: 12),
+
+            // Summary cards
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  _buildDebtSummaryCard(
+                    "Piutang Aktif",
+                    totalPiutangActive,
+                    countPiutang,
+                    const Color(0xFF00897B),
+                    Icons.arrow_downward,
+                  ),
+                  const SizedBox(width: 12),
+                  _buildDebtSummaryCard(
+                    "Utang Aktif",
+                    totalUtangActive,
+                    countUtang,
+                    Colors.red,
+                    Icons.arrow_upward,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+
+            // Detail list
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  if (totalPiutangPaid > 0 || totalUtangPaid > 0)
+                    _buildDebtDetailRow("Piutang Lunas", totalPiutangPaid, const Color(0xFF80CBC4), textColor),
+                  if (totalPiutangPaid > 0 || totalUtangPaid > 0)
+                    _buildDebtDetailRow("Utang Lunas", totalUtangPaid, const Color(0xFFEF9A9A), textColor),
+                  _buildDebtDetailRow("Piutang Aktif", totalPiutangActive, const Color(0xFF00897B), textColor),
+                  _buildDebtDetailRow("Utang Aktif", totalUtangActive, Colors.red, textColor),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          // ignore: deprecated_member_use
+                          color: Colors.black.withOpacity(0.03),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Selisih (Piutang - Utang)",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: textColor,
+                          ),
+                        ),
+                        Text(
+                          "${netPosition >= 0 ? '+' : '-'}${_formatRupiah(netPosition.abs())}",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: netPosition >= 0 ? const Color(0xFF00897B) : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDebtSummaryCard(String title, double amount, int count, Color color, IconData icon) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              // ignore: deprecated_member_use
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    // ignore: deprecated_member_use
+                    color: color.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: color, size: 16),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    title,
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _formatRupiah(amount),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              "$count transaksi",
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebtDetailRow(String label, double amount, Color color, Color textColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            // ignore: deprecated_member_use
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 15),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: textColor,
+              ),
+            ),
+          ),
+          Text(
+            _formatRupiah(amount),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: textColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  // _buildDebtDetailRow remains inside _AnalysisScreenState
+
   Widget _buildToggleButton(String text, int modeIndex, Color activeColor) {
     bool isActive = _viewMode == modeIndex;
     return Expanded(
@@ -382,6 +677,114 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
           Text(
             message,
             style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _DebtPieChart extends StatefulWidget {
+  final List<MapEntry<String, double>> chartEntries;
+  final double chartTotal;
+  final Map<String, Color> debtColors;
+  final double netPosition;
+  final Color textColor;
+
+  const _DebtPieChart({
+    required this.chartEntries,
+    required this.chartTotal,
+    required this.debtColors,
+    required this.netPosition,
+    required this.textColor,
+  });
+
+  @override
+  State<_DebtPieChart> createState() => _DebtPieChartState();
+}
+
+class _DebtPieChartState extends State<_DebtPieChart> {
+  int _touchedIndex = -1;
+
+  String _formatRupiah(num number) {
+    return "Rp ${number.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 250,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          PieChart(
+            PieChartData(
+              pieTouchData: PieTouchData(
+                touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions ||
+                        pieTouchResponse == null ||
+                        pieTouchResponse.touchedSection == null) {
+                      _touchedIndex = -1;
+                      return;
+                    }
+                    _touchedIndex =
+                        pieTouchResponse.touchedSection!.touchedSectionIndex;
+                  });
+                },
+              ),
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 2,
+              centerSpaceRadius: 50,
+              sections: List.generate(widget.chartEntries.length, (i) {
+                final isTouched = i == _touchedIndex;
+                final fontSize = isTouched ? 14.0 : 12.0;
+                final radius = isTouched ? 65.0 : 50.0;
+                final entry = widget.chartEntries[i];
+                final percentage = (entry.value / widget.chartTotal) * 100;
+
+                return PieChartSectionData(
+                  color: widget.debtColors[entry.key] ?? Colors.grey,
+                  value: entry.value,
+                  title: isTouched
+                      ? _formatRupiah(entry.value)
+                      : '${percentage.toStringAsFixed(0)}%',
+                  radius: radius,
+                  titleStyle: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: const [
+                      Shadow(color: Colors.black26, blurRadius: 2),
+                    ],
+                  ),
+                );
+              }),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "Posisi Bersih",
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              ),
+              Text(
+                _formatRupiah(widget.netPosition.abs()),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: widget.netPosition >= 0 ? const Color(0xFF00897B) : Colors.red,
+                ),
+              ),
+              Text(
+                widget.netPosition >= 0 ? "Lebih banyak piutang" : "Lebih banyak utang",
+                style: TextStyle(
+                  fontSize: 9,
+                  color: widget.netPosition >= 0 ? const Color(0xFF00897B) : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ],
       ),

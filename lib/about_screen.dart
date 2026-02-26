@@ -193,6 +193,48 @@ class AboutScreen extends StatelessWidget {
                 ),
               ],
             ),
+
+            const SizedBox(height: 30),
+
+            // ARTOBOT LANDING PAGE
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: () => _launchURL(context, "https://arto-ku-landingpage.vercel.app/"),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF0F4C5C), Color(0xFF00897B)],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      // ignore: deprecated_member_use
+                      color: const Color(0xFF0F4C5C).withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.smart_toy_outlined, color: Colors.white, size: 20),
+                    SizedBox(width: 8),
+                    Text(
+                      "Kunjungi Landing Page ArtoKu",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Icon(Icons.open_in_new, color: Colors.white70, size: 16),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),

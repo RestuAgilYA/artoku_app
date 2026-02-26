@@ -2,15 +2,31 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
 class PdfHelper {
-  // Fungsi utama untuk generate dan print PDF
+  // Backward compatibility wrapper
   static Future<void> generateMonthlyReport(
     DateTime selectedMonth,
     List<QueryDocumentSnapshot> transactionDocs,
-    List<QueryDocumentSnapshot> transferDocs,
-  ) async {
+    List<QueryDocumentSnapshot> transferDocs, {
+    List<QueryDocumentSnapshot>? debtDocs,
+  }) async {
+    final range = DateTimeRange(
+      start: DateTime(selectedMonth.year, selectedMonth.month, 1),
+      end: DateTime(selectedMonth.year, selectedMonth.month + 1, 0, 23, 59, 59),
+    );
+    return generateReport(range, transactionDocs, transferDocs, debtDocs: debtDocs);
+  }
+
+  // Fungsi utama untuk generate dan print PDF with date range
+  static Future<void> generateReport(
+    DateTimeRange dateRange,
+    List<QueryDocumentSnapshot> transactionDocs,
+    List<QueryDocumentSnapshot> transferDocs, {
+    List<QueryDocumentSnapshot>? debtDocs,
+  }) async {
     final pdf = pw.Document();
 
     // 1. Hitung Ringkasan Data Transaksi
@@ -29,8 +45,8 @@ class PdfHelper {
       final data = doc.data() as Map<String, dynamic>;
       if (data['date'] == null) return false;
       final date = (data['date'] as Timestamp).toDate();
-      return date.year == selectedMonth.year &&
-          date.month == selectedMonth.month;
+      return !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
     }).toList();
 
     transactions.sort((a, b) {
@@ -62,8 +78,8 @@ class PdfHelper {
       final data = doc.data() as Map<String, dynamic>;
       if (data['timestamp'] == null) return false;
       final date = (data['timestamp'] as Timestamp).toDate();
-      return date.year == selectedMonth.year &&
-          date.month == selectedMonth.month;
+      return !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
     }).toList();
 
     transfers.sort((a, b) {
@@ -73,6 +89,26 @@ class PdfHelper {
           (b.data() as Map<String, dynamic>)['timestamp'] as Timestamp;
       return dateB.compareTo(dateA);
     });
+
+    // 2b. Filter & Urutkan Piutang/Utang
+    final debts = (debtDocs ?? []).where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['createdAt'] == null) return false;
+      final date = (data['createdAt'] as Timestamp).toDate();
+      return !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+    }).toList();
+
+    debts.sort((a, b) {
+      final dateA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      final dateB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      return dateB.compareTo(dateA);
+    });
+
+    // Period label
+    final periodLabel = _formatDateShort(dateRange.start) == _formatDateShort(dateRange.end)
+        ? _formatDateShort(dateRange.start)
+        : '${_formatDateShort(dateRange.start)} - ${_formatDateShort(dateRange.end)}';
 
     // 3. Desain Halaman PDF
     pdf.addPage(
@@ -100,7 +136,7 @@ class PdfHelper {
 
             // INFO BULAN & RINGKASAN
             pw.Text(
-              "Periode: ${_getMonthName(selectedMonth.month)} ${selectedMonth.year}",
+              "Periode: $periodLabel",
               style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
@@ -144,7 +180,7 @@ class PdfHelper {
               style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 10),
-            _buildDailyTrendChart(dailyIncome, dailyExpense, selectedMonth),
+            _buildDailyTrendChart(dailyIncome, dailyExpense, dateRange.start),
             pw.SizedBox(height: 25),
             
             // ========== CHART: DISTRIBUSI KATEGORI PENGELUARAN ==========
@@ -249,6 +285,50 @@ class PdfHelper {
                 3: pw.Alignment.centerRight
               },
             ),
+            pw.SizedBox(height: 30),
+
+            // TABEL PIUTANG/UTANG
+            if (debts.isNotEmpty) ...[    
+              pw.Text(
+                "Piutang & Utang",
+                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 10),
+              // ignore: deprecated_member_use
+              pw.Table.fromTextArray(
+                headers: ['Tanggal', 'Tipe', 'Nama', 'Jumlah', 'Status', 'Keterangan'],
+                data: debts.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final date = (data['createdAt'] as Timestamp).toDate();
+                  final amount = (data['amount'] ?? 0).toDouble();
+                  final type = data['type'] == 'piutang' ? 'Piutang' : 'Utang';
+                  final status = data['isPaid'] == true ? 'Lunas' : 'Belum Lunas';
+                  return [
+                    "${date.day}/${date.month}/${date.year}",
+                    type,
+                    data['personName'] ?? '-',
+                    _formatCurrency(amount),
+                    status,
+                    data['note'] ?? '-',
+                  ];
+                }).toList(),
+                border: null,
+                headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                headerDecoration:
+                    const pw.BoxDecoration(color: PdfColor.fromInt(0xFF8E24AA)),
+                rowDecoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                        bottom: pw.BorderSide(color: PdfColors.grey300))),
+                cellAlignment: pw.Alignment.centerLeft,
+                cellAlignments: {
+                  0: pw.Alignment.center,
+                  3: pw.Alignment.centerRight,
+                  4: pw.Alignment.center,
+                },
+              ),
+              pw.SizedBox(height: 30),
+            ],
           ];
         },
         footer: (pw.Context context) {
@@ -270,7 +350,7 @@ class PdfHelper {
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => pdf.save(),
       name:
-          'Laporan_${_getMonthName(selectedMonth.month)}_${selectedMonth.year}.pdf',
+          'Laporan_${_formatDateShort(dateRange.start)}_${_formatDateShort(dateRange.end)}.pdf',
     );
   }
 
@@ -297,26 +377,12 @@ class PdfHelper {
     );
   }
 
-  static String _getMonthName(int month) {
-    const months = [
-      "Januari",
-      "Februari",
-      "Maret",
-      "April",
-      "Mei",
-      "Juni",
-      "Juli",
-      "Agustus",
-      "September",
-      "Oktober",
-      "November",
-      "Desember",
-    ];
-    return months[month - 1];
-  }
-
   static String _formatCurrency(double amount) {
     return "Rp ${amount.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]}.')}";
+  }
+
+  static String _formatDateShort(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}-${date.month.toString().padLeft(2, '0')}-${date.year}';
   }
   
   // ========== CHART HELPERS ==========

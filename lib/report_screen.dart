@@ -21,12 +21,47 @@ class _ReportScreenState extends State<ReportScreen> {
   bool _isExporting = false;
   bool _isExportingCsv = false;
 
-  Future<void> _exportToPdf() async {
+  // Date range for export
+  DateTimeRange? _exportDateRange;
+
+  Future<void> _pickDateRangeAndExport({required bool isPdf}) async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(now.year + 1, 12, 31),
+      initialDateRange: _exportDateRange ?? DateTimeRange(
+        start: DateTime(_selectedMonth.year, _selectedMonth.month, 1),
+        end: DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0),
+      ),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+              primary: primaryColor,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null) return;
+    setState(() => _exportDateRange = picked);
+
+    if (isPdf) {
+      _exportToPdf(picked);
+    } else {
+      _exportToCsv(picked);
+    }
+  }
+
+  Future<void> _exportToPdf(DateTimeRange dateRange) async {
     if (user == null) return;
     setState(() => _isExporting = true);
 
     try {
-      // 1. Fetch both collections in parallel
+      // 1. Fetch all collections in parallel
       final transactionFuture = FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
@@ -37,27 +72,34 @@ class _ReportScreenState extends State<ReportScreen> {
           .doc(user!.uid)
           .collection('transfers')
           .get();
+      final debtFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('debts')
+          .get();
 
       final results =
-          await Future.wait([transactionFuture, transferFuture]);
+          await Future.wait([transactionFuture, transferFuture, debtFuture]);
       final transactionSnapshot = results[0] as QuerySnapshot;
       final transferSnapshot = results[1] as QuerySnapshot;
+      final debtSnapshot = results[2] as QuerySnapshot;
 
       if (!mounted) return;
 
       // 2. Check if there is any data at all
-      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty) {
+      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty && debtSnapshot.docs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
         setState(() => _isExporting = false);
         return;
       }
 
-      // 3. Call the updated PDF helper
-      await PdfHelper.generateMonthlyReport(
-        _selectedMonth,
+      // 3. Call the updated PDF helper with date range
+      await PdfHelper.generateReport(
+        dateRange,
         transactionSnapshot.docs,
         transferSnapshot.docs,
+        debtDocs: debtSnapshot.docs,
       );
     } catch (e) {
       if (mounted) {
@@ -71,12 +113,12 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  Future<void> _exportToCsv() async {
+  Future<void> _exportToCsv(DateTimeRange dateRange) async {
     if (user == null) return;
     setState(() => _isExportingCsv = true);
 
     try {
-      // 1. Fetch both collections in parallel
+      // 1. Fetch all collections in parallel
       final transactionFuture = FirebaseFirestore.instance
           .collection('users')
           .doc(user!.uid)
@@ -87,26 +129,33 @@ class _ReportScreenState extends State<ReportScreen> {
           .doc(user!.uid)
           .collection('transfers')
           .get();
+      final debtFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('debts')
+          .get();
 
-      final results = await Future.wait([transactionFuture, transferFuture]);
+      final results = await Future.wait([transactionFuture, transferFuture, debtFuture]);
       final transactionSnapshot = results[0] as QuerySnapshot;
       final transferSnapshot = results[1] as QuerySnapshot;
+      final debtSnapshot = results[2] as QuerySnapshot;
 
       if (!mounted) return;
 
       // 2. Check if there is any data at all
-      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty) {
+      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty && debtSnapshot.docs.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
         setState(() => _isExportingCsv = false);
         return;
       }
 
-      // 3. Call the CSV helper
-      await CsvHelper.generateMonthlyReport(
-        _selectedMonth,
+      // 3. Call the CSV helper with date range
+      await CsvHelper.generateReport(
+        dateRange,
         transactionSnapshot.docs,
         transferSnapshot.docs,
+        debtDocs: debtSnapshot.docs,
       );
     } catch (e) {
       if (mounted) {
@@ -450,7 +499,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                 color: Colors.white,
                               ),
                               tooltip: 'Export CSV',
-                              onPressed: _exportToCsv,
+                              onPressed: () => _pickDateRangeAndExport(isPdf: false),
                             ),
                       // PDF Button
                       _isExporting
@@ -468,7 +517,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                 color: Colors.white,
                               ),
                               tooltip: 'Export PDF',
-                              onPressed: _exportToPdf,
+                              onPressed: () => _pickDateRangeAndExport(isPdf: true),
                             ),
                     ],
                   ),

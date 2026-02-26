@@ -1,23 +1,41 @@
 import 'dart:io';
 import 'package:csv/csv.dart';
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CsvHelper {
-  /// Generate dan share CSV untuk laporan bulanan
+  /// Backward compatibility wrapper
   static Future<void> generateMonthlyReport(
     DateTime selectedMonth,
     List<QueryDocumentSnapshot> transactionDocs,
-    List<QueryDocumentSnapshot> transferDocs,
-  ) async {
-    // 1. Filter transaksi berdasarkan bulan
+    List<QueryDocumentSnapshot> transferDocs, {
+    List<QueryDocumentSnapshot>? debtDocs,
+  }) async {
+    final range = DateTimeRange(
+      start: DateTime(selectedMonth.year, selectedMonth.month, 1),
+      end: DateTime(selectedMonth.year, selectedMonth.month + 1, 0, 23, 59, 59),
+    );
+    return generateReport(range, transactionDocs, transferDocs, debtDocs: debtDocs);
+  }
+
+  /// Generate dan share CSV untuk laporan dengan date range
+  static Future<void> generateReport(
+    DateTimeRange dateRange,
+    List<QueryDocumentSnapshot> transactionDocs,
+    List<QueryDocumentSnapshot> transferDocs, {
+    List<QueryDocumentSnapshot>? debtDocs,
+  }) async {
+    final periodLabel = '${_formatDate(dateRange.start)} - ${_formatDate(dateRange.end)}';
+
+    // 1. Filter transaksi berdasarkan date range
     final transactions = transactionDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['date'] == null) return false;
       final date = (data['date'] as Timestamp).toDate();
-      return date.year == selectedMonth.year &&
-          date.month == selectedMonth.month;
+      return !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
     }).toList();
 
     // Sort by date descending
@@ -27,13 +45,13 @@ class CsvHelper {
       return dateB.compareTo(dateA);
     });
 
-    // 2. Filter transfers berdasarkan bulan
+    // 2. Filter transfers berdasarkan date range
     final transfers = transferDocs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       if (data['timestamp'] == null) return false;
       final date = (data['timestamp'] as Timestamp).toDate();
-      return date.year == selectedMonth.year &&
-          date.month == selectedMonth.month;
+      return !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
     }).toList();
 
     transfers.sort((a, b) {
@@ -45,7 +63,7 @@ class CsvHelper {
     // 3. Buat data untuk CSV - Transaksi
     List<List<dynamic>> transactionRows = [
       ['=== LAPORAN KEUANGAN ARTOKU ==='],
-      ['Periode: ${_getMonthName(selectedMonth.month)} ${selectedMonth.year}'],
+      ['Periode: $periodLabel'],
       [],
       ['--- RIWAYAT TRANSAKSI ---'],
       ['Tanggal', 'Tipe', 'Kategori', 'Jumlah (Rp)', 'Catatan'],
@@ -112,33 +130,58 @@ class CsvHelper {
       }
     }
 
+    // 5b. Tambah data piutang/utang jika ada
+    final debts = (debtDocs ?? []).where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['createdAt'] == null) return false;
+      final date = (data['createdAt'] as Timestamp).toDate();
+      return !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+    }).toList();
+
+    if (debts.isNotEmpty) {
+      transactionRows.addAll([
+        [],
+        ['--- PIUTANG & UTANG ---'],
+        ['Tanggal', 'Tipe', 'Nama', 'Jumlah (Rp)', 'Status', 'Keterangan'],
+      ]);
+
+      for (var doc in debts) {
+        final data = doc.data() as Map<String, dynamic>;
+        final date = (data['createdAt'] as Timestamp).toDate();
+        final type = data['type'] == 'piutang' ? 'Piutang' : 'Utang';
+        final amount = (data['amount'] ?? 0).toDouble();
+        final status = data['isPaid'] == true ? 'Lunas' : 'Belum Lunas';
+
+        transactionRows.add([
+          _formatDate(date),
+          type,
+          data['personName'] ?? '-',
+          amount.toStringAsFixed(0),
+          status,
+          data['note'] ?? '-',
+        ]);
+      }
+    }
+
     // 6. Convert ke CSV string
     String csvData = const ListToCsvConverter().convert(transactionRows);
 
     // 7. Simpan ke file
     final directory = await getTemporaryDirectory();
-    final fileName = 'ArtoKu_Laporan_${_getMonthName(selectedMonth.month)}_${selectedMonth.year}.csv';
+    final fileName = 'ArtoKu_Laporan_${_formatDate(dateRange.start)}_${_formatDate(dateRange.end)}.csv';
     final file = File('${directory.path}/$fileName');
     await file.writeAsString(csvData);
 
     // 8. Share file
     await Share.shareXFiles(
       [XFile(file.path)],
-      text: 'Laporan Keuangan ArtoKu - ${_getMonthName(selectedMonth.month)} ${selectedMonth.year}',
+      text: 'Laporan Keuangan ArtoKu - $periodLabel',
     );
   }
 
   /// Format tanggal ke string readable
   static String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-  }
-
-  /// Get nama bulan dalam Bahasa Indonesia
-  static String _getMonthName(int month) {
-    const months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-    ];
-    return months[month - 1];
   }
 }
