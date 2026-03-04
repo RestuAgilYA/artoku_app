@@ -30,6 +30,23 @@ void main() async {
     print("Error loading .env: $e");
   }
 
+  // [FIX] Reschedule notifikasi setiap kali app dibuka
+  // Ini mengatasi masalah notifikasi yang hilang karena:
+  // - Android battery optimization / Doze mode membatalkan alarm
+  // - OEM (Xiaomi, Samsung, Oppo) membersihkan scheduled alarm
+  // - Device reboot yang tidak me-restore alarm dengan benar
+  try {
+    final prefsNotif = await SharedPreferences.getInstance();
+    final isReminderOn = prefsNotif.getBool('daily_reminder') ?? false;
+    if (isReminderOn) {
+      await NotificationService().scheduleAllReminders();
+      await NotificationService().debugPendingNotifications();
+    }
+  } catch (e) {
+    // ignore: avoid_print
+    print("Gagal reschedule notifikasi: $e");
+  }
+
   try {
     final prefs = await SharedPreferences.getInstance();
     // Baca key 'isDarkMode', jika null anggap saja false (Light mode)

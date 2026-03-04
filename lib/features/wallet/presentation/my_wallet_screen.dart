@@ -78,92 +78,498 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
       });
     }
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(document == null ? "Tambah Dompet" : "Edit Dompet"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(labelText: "Nama Dompet"),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: balanceController,
-              keyboardType: TextInputType.number,
-              inputFormatters: [ThousandsFormatter()],
-              decoration: const InputDecoration(
-                labelText: "Saldo Awal",
-                prefixText: 'Rp ',
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final sheetBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        final textColor = isDark ? Colors.white : Colors.black;
+        final hintColor = isDark ? Colors.grey : Colors.grey.shade400;
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              padding: EdgeInsets.only(
+                top: 16, left: 24, right: 24, bottom: bottomInset + 24,
               ),
-            ),
-            // Color picker can be added here
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Batal"),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // Validasi nama dompet tidak boleh kosong
-              if (nameController.text.trim().isEmpty) {
-                UIHelper.showError(context, "Nama dompet tidak boleh kosong!");
-                return;
-              }
+              decoration: BoxDecoration(
+                color: sheetBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      document == null ? "Tambah Dompet" : "Edit Dompet",
+                      style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold, color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
 
-              // Validasi nama dompet unik (jika tambah baru atau edit dengan nama berbeda)
-              if (document == null || nameController.text.trim() != document['name']) {
-                final query = await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user!.uid)
-                    .collection('wallets')
-                    .where('name', isEqualTo: nameController.text.trim())
-                    .limit(1)
-                    .get();
+                    // Nama Dompet
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text("Nama Dompet", style: TextStyle(color: hintColor, fontSize: 12)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: nameController,
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
+                        hintText: "Contoh: Dompet Utama",
+                        hintStyle: TextStyle(color: hintColor),
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: hintColor, size: 20),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF0F4C5C), width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-                if (query.docs.isNotEmpty) {
-                  if (mounted) {
-                    // ignore: use_build_context_synchronously
-                    UIHelper.showError(context, "Nama dompet sudah ada. Silakan gunakan nama lain!");
-                  }
-                  return;
-                }
-              }
+                    // Saldo Awal
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text("Saldo Awal", style: TextStyle(color: hintColor, fontSize: 12)),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: balanceController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [ThousandsFormatter()],
+                      style: TextStyle(color: textColor),
+                      decoration: InputDecoration(
+                        prefixText: 'Rp ',
+                        prefixStyle: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+                        hintText: "0",
+                        hintStyle: TextStyle(color: hintColor),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Colors.grey.shade300),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: Color(0xFF0F4C5C), width: 1.5),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
 
-              final walletRef = FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user!.uid)
-                  .collection('wallets');
+                    // Color Picker
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text("Warna Dompet", style: TextStyle(color: hintColor, fontSize: 12)),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        ..._presetColors.map((color) {
+                          final isSelected = selectedColor == color;
+                          return GestureDetector(
+                            onTap: () => setSheetState(() => selectedColor = color),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              width: 36, height: 36,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                                border: isSelected
+                                    ? Border.all(color: textColor, width: 2.5)
+                                    : null,
+                                boxShadow: isSelected
+                                    ? [BoxShadow(color: color.withAlpha(100), blurRadius: 8, spreadRadius: 1)]
+                                    : [],
+                              ),
+                              child: isSelected
+                                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                                  : null,
+                            ),
+                          );
+                        }),
+                        // Custom color button
+                        GestureDetector(
+                          onTap: () {
+                            _showCustomColorPicker(context, selectedColor, (color) {
+                              setSheetState(() => selectedColor = color);
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 36, height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: !_presetColors.contains(selectedColor)
+                                    ? textColor
+                                    : Colors.grey.shade400,
+                                width: !_presetColors.contains(selectedColor) ? 2.5 : 1.5,
+                              ),
+                              gradient: const SweepGradient(
+                                colors: [
+                                  Colors.red,
+                                  Colors.orange,
+                                  Colors.yellow,
+                                  Colors.green,
+                                  Colors.cyan,
+                                  Colors.blue,
+                                  Colors.purple,
+                                  Colors.red,
+                                ],
+                              ),
+                              boxShadow: !_presetColors.contains(selectedColor)
+                                  ? [BoxShadow(color: selectedColor.withAlpha(100), blurRadius: 8, spreadRadius: 1)]
+                                  : [],
+                            ),
+                            child: !_presetColors.contains(selectedColor)
+                                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                                : Icon(Icons.colorize, color: Colors.white, size: 16,
+                                    shadows: [Shadow(color: Colors.black.withAlpha(120), blurRadius: 3)]),
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Show selected custom color preview
+                    if (!_presetColors.contains(selectedColor))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 20, height: 20,
+                              decoration: BoxDecoration(
+                                color: selectedColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Warna kustom dipilih",
+                              style: TextStyle(color: hintColor, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 28),
 
-              final balance = double.tryParse(
-                      balanceController.text.replaceAll('.', '')) ??
-                  0;
+                    // Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              side: BorderSide(color: Colors.grey.shade400),
+                            ),
+                            child: Text("Batal", style: TextStyle(color: textColor)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              // Validasi nama dompet tidak boleh kosong
+                              if (nameController.text.trim().isEmpty) {
+                                UIHelper.showError(context, "Nama dompet tidak boleh kosong!");
+                                return;
+                              }
 
-              Map<String, dynamic> data = {
-                'name': nameController.text,
-                'balance': balance,
-                // ignore: deprecated_member_use
-                'color': selectedColor.value,
-                'isLocked': document != null ? document['isLocked'] : false,
-                'createdAt': FieldValue.serverTimestamp(),
-              };
+                              // Validasi nama dompet unik
+                              if (document == null || nameController.text.trim() != document['name']) {
+                                final query = await FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user!.uid)
+                                    .collection('wallets')
+                                    .where('name', isEqualTo: nameController.text.trim())
+                                    .limit(1)
+                                    .get();
 
-              if (document == null) {
-                await walletRef.add(data);
-              } else {
-                await walletRef.doc(document.id).update(data);
-              }
-              // ignore: use_build_context_synchronously
-              Navigator.pop(context);
-            },
-            child: const Text("Simpan"),
-          ),
-        ],
-      ),
+                                if (query.docs.isNotEmpty) {
+                                  if (mounted) {
+                                    // ignore: use_build_context_synchronously
+                                    UIHelper.showError(context, "Nama dompet sudah ada. Silakan gunakan nama lain!");
+                                  }
+                                  return;
+                                }
+                              }
+
+                              final walletRef = FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user!.uid)
+                                  .collection('wallets');
+
+                              final balance = double.tryParse(
+                                      balanceController.text.replaceAll('.', '')) ??
+                                  0;
+
+                              Map<String, dynamic> data = {
+                                'name': nameController.text,
+                                'balance': balance,
+                                // ignore: deprecated_member_use
+                                'color': selectedColor.value,
+                                'isLocked': document != null ? document['isLocked'] : false,
+                                'createdAt': FieldValue.serverTimestamp(),
+                              };
+
+                              if (document == null) {
+                                await walletRef.add(data);
+                              } else {
+                                await walletRef.doc(document.id).update(data);
+                              }
+                              // ignore: use_build_context_synchronously
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              "Simpan",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showCustomColorPicker(BuildContext parentContext, Color currentColor, Function(Color) onColorSelected) {
+    double hue = HSVColor.fromColor(currentColor).hue;
+    double saturation = HSVColor.fromColor(currentColor).saturation;
+    double value = HSVColor.fromColor(currentColor).value;
+
+    showDialog(
+      context: parentContext,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final bgColor = isDark ? const Color(0xFF2A2A2A) : Colors.white;
+        final textColor = isDark ? Colors.white : Colors.black;
+
+        return StatefulBuilder(
+          builder: (context, setPickerState) {
+            final previewColor = HSVColor.fromAHSV(1.0, hue, saturation, value).toColor();
+
+            return AlertDialog(
+              backgroundColor: bgColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    width: 28, height: 28,
+                    decoration: BoxDecoration(
+                      color: previewColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.grey.shade400),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text("Pilih Warna", style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
+                ],
+              ),
+              content: SizedBox(
+                width: 280,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Hue slider
+                    Text("Warna", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 28,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: LinearGradient(
+                          colors: List.generate(
+                            360 ~/ 10,
+                            (i) => HSVColor.fromAHSV(1.0, i * 10.0, 1.0, 1.0).toColor(),
+                          ),
+                        ),
+                      ),
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 28,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+                          thumbColor: Colors.white,
+                          activeTrackColor: Colors.transparent,
+                          inactiveTrackColor: Colors.transparent,
+                          overlayColor: Colors.white24,
+                        ),
+                        child: Slider(
+                          value: hue,
+                          min: 0,
+                          max: 359,
+                          onChanged: (v) => setPickerState(() => hue = v),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // Saturation slider
+                    Text("Saturasi", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 24,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [
+                            HSVColor.fromAHSV(1.0, hue, 0.0, value).toColor(),
+                            HSVColor.fromAHSV(1.0, hue, 1.0, value).toColor(),
+                          ],
+                        ),
+                      ),
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 24,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                          thumbColor: Colors.white,
+                          activeTrackColor: Colors.transparent,
+                          inactiveTrackColor: Colors.transparent,
+                          overlayColor: Colors.white24,
+                        ),
+                        child: Slider(
+                          value: saturation,
+                          min: 0,
+                          max: 1,
+                          onChanged: (v) => setPickerState(() => saturation = v),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    // Brightness slider
+                    Text("Kecerahan", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    const SizedBox(height: 4),
+                    Container(
+                      height: 24,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: LinearGradient(
+                          colors: [
+                            HSVColor.fromAHSV(1.0, hue, saturation, 0.0).toColor(),
+                            HSVColor.fromAHSV(1.0, hue, saturation, 1.0).toColor(),
+                          ],
+                        ),
+                      ),
+                      child: SliderTheme(
+                        data: SliderThemeData(
+                          trackHeight: 24,
+                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
+                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                          thumbColor: Colors.white,
+                          activeTrackColor: Colors.transparent,
+                          inactiveTrackColor: Colors.transparent,
+                          overlayColor: Colors.white24,
+                        ),
+                        child: Slider(
+                          value: value,
+                          min: 0,
+                          max: 1,
+                          onChanged: (v) => setPickerState(() => value = v),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Preview large
+                    Container(
+                      width: double.infinity,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: previewColor,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        // ignore: deprecated_member_use
+                        '#${previewColor.value.toRadixString(16).substring(2).toUpperCase()}',
+                        style: TextStyle(
+                          color: value > 0.5 ? Colors.black54 : Colors.white70,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text("Batal", style: TextStyle(color: textColor)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    onColorSelected(previewColor);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: previewColor,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    "Pilih Warna",
+                    style: TextStyle(
+                      color: value > 0.5 ? Colors.black87 : Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -611,100 +1017,215 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
     if (!mounted) return;
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final sheetBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        final textColor = isDark ? Colors.white : Colors.black;
+        final hintColor = isDark ? Colors.grey : Colors.grey.shade400;
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
         return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(document == null ? "Tambah Piutang/Utang" : "Edit Piutang/Utang"),
-              content: SingleChildScrollView(
+          builder: (context, setSheetState) {
+            final piutangActive = selectedType == 'piutang';
+            final accentColor = piutangActive ? const Color(0xFF00897B) : Colors.red;
+
+            InputDecoration fieldDecoration({
+              required String label,
+              String? hint,
+              Widget? prefixIcon,
+              String? prefixText,
+              Widget? suffixIcon,
+            }) {
+              return InputDecoration(
+                labelText: label,
+                labelStyle: TextStyle(color: hintColor, fontSize: 13),
+                hintText: hint,
+                hintStyle: TextStyle(color: hintColor),
+                prefixIcon: prefixIcon,
+                prefixText: prefixText,
+                prefixStyle: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+                suffixIcon: suffixIcon,
+                contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: accentColor, width: 1.5),
+                ),
+              );
+            }
+
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.only(
+                top: 16, left: 24, right: 24, bottom: bottomInset + 24,
+              ),
+              decoration: BoxDecoration(
+                color: sheetBg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Type selector
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setDialogState(() => selectedType = 'piutang'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: selectedType == 'piutang' ? const Color(0xFF00897B) : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: selectedType == 'piutang' ? const Color(0xFF00897B) : Colors.grey.shade300,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                "Piutang",
-                                style: TextStyle(
-                                  color: selectedType == 'piutang' ? Colors.white : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
+                    // Handle bar
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => setDialogState(() => selectedType = 'utang'),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: selectedType == 'utang' ? Colors.red : Colors.transparent,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: selectedType == 'utang' ? Colors.red : Colors.grey.shade300,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                "Utang",
-                                style: TextStyle(
-                                  color: selectedType == 'utang' ? Colors.white : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: nameController,
-                      decoration: InputDecoration(
-                        labelText: selectedType == 'piutang'
-                            ? "Nama Peminjam"
-                            : "Nama Pemberi Pinjaman",
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 16),
+                    Text(
+                      document == null ? "Tambah Piutang/Utang" : "Edit Piutang/Utang",
+                      style: TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold, color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Type selector
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setSheetState(() => selectedType = 'piutang'),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: piutangActive ? const Color(0xFF00897B) : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: piutangActive
+                                      ? [BoxShadow(color: const Color(0xFF00897B).withAlpha(60), blurRadius: 8)]
+                                      : [],
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.arrow_upward_rounded,
+                                        size: 16,
+                                        color: piutangActive ? Colors.white : Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Piutang",
+                                      style: TextStyle(
+                                        color: piutangActive ? Colors.white : Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setSheetState(() => selectedType = 'utang'),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: !piutangActive ? Colors.red : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: !piutangActive
+                                      ? [BoxShadow(color: Colors.red.withAlpha(60), blurRadius: 8)]
+                                      : [],
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.arrow_downward_rounded,
+                                        size: 16,
+                                        color: !piutangActive ? Colors.white : Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Utang",
+                                      style: TextStyle(
+                                        color: !piutangActive ? Colors.white : Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Nama
+                    TextField(
+                      controller: nameController,
+                      style: TextStyle(color: textColor),
+                      decoration: fieldDecoration(
+                        label: piutangActive ? "Nama Peminjam" : "Nama Pemberi Pinjaman",
+                        prefixIcon: Icon(Icons.person_outline, color: hintColor, size: 20),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Jumlah
                     TextField(
                       controller: amountController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [ThousandsFormatter()],
-                      decoration: const InputDecoration(
-                        labelText: "Jumlah",
+                      style: TextStyle(color: textColor),
+                      decoration: fieldDecoration(
+                        label: "Jumlah",
                         prefixText: 'Rp ',
+                        hint: "0",
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 14),
+
+                    // Keterangan
                     TextField(
                       controller: noteController,
-                      decoration: const InputDecoration(labelText: "Keterangan (opsional)"),
+                      style: TextStyle(color: textColor),
+                      decoration: fieldDecoration(
+                        label: "Keterangan (opsional)",
+                        prefixIcon: Icon(Icons.notes_outlined, color: hintColor, size: 20),
+                      ),
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 14),
+
                     // Pilih Dompet
                     DropdownButtonFormField<String>(
                       initialValue: selectedWalletId,
-                      decoration: const InputDecoration(labelText: "Dompet"),
+                      decoration: fieldDecoration(
+                        label: "Dompet",
+                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: hintColor, size: 20),
+                      ),
+                      dropdownColor: sheetBg,
+                      style: TextStyle(color: textColor, fontSize: 14),
                       items: unlockedWallets.map((wallet) {
                         final walletData = wallet.data();
                         final walletBalance = (walletData['balance'] ?? 0).toDouble();
@@ -732,164 +1253,236 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         );
                       }).toList(),
                       onChanged: (value) {
-                        setDialogState(() => selectedWalletId = value);
+                        setSheetState(() => selectedWalletId = value);
                       },
-                      hint: const Text("Pilih dompet"),
+                      hint: Text("Pilih dompet", style: TextStyle(color: hintColor)),
                       isExpanded: true,
                     ),
-                    const SizedBox(height: 12),
-                    // Tanggal
-                    GestureDetector(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: selectedDate,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
-                        );
-                        if (picked != null) {
-                          setDialogState(() => selectedDate = picked);
-                        }
-                      },
-                      child: InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: "Tanggal",
-                          suffixIcon: Icon(Icons.calendar_today, size: 18),
-                        ),
-                        child: Text(
-                          DateFormat('dd MMM yyyy').format(selectedDate),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // Jatuh tempo (opsional)
-                    GestureDetector(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: dueDate ?? DateTime.now().add(const Duration(days: 30)),
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2030),
-                        );
-                        if (picked != null) {
-                          setDialogState(() => dueDate = picked);
-                        }
-                      },
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: "Jatuh Tempo (opsional)",
-                          suffixIcon: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (dueDate != null)
-                                GestureDetector(
-                                  onTap: () => setDialogState(() => dueDate = null),
-                                  child: const Icon(Icons.clear, size: 18),
-                                ),
-                              const Icon(Icons.calendar_today, size: 18),
-                            ],
+                    const SizedBox(height: 14),
+
+                    // Tanggal & Jatuh Tempo in a row
+                    Row(
+                      children: [
+                        // Tanggal
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: selectedDate,
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2030),
+                              );
+                              if (picked != null) {
+                                setSheetState(() => selectedDate = picked);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.calendar_today, size: 14, color: hintColor),
+                                      const SizedBox(width: 4),
+                                      Text("Tanggal", style: TextStyle(color: hintColor, fontSize: 11)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    DateFormat('dd MMM yyyy').format(selectedDate),
+                                    style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                        child: Text(
-                          dueDate != null
-                              ? DateFormat('dd MMM yyyy').format(dueDate!)
-                              : 'Tidak ada',
+                        const SizedBox(width: 10),
+                        // Jatuh Tempo
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: dueDate ?? DateTime.now().add(const Duration(days: 30)),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2030),
+                              );
+                              if (picked != null) {
+                                setSheetState(() => dueDate = picked);
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(Icons.event, size: 14, color: hintColor),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text("Jatuh Tempo", style: TextStyle(color: hintColor, fontSize: 11), overflow: TextOverflow.ellipsis),
+                                      ),
+                                      if (dueDate != null)
+                                        GestureDetector(
+                                          onTap: () => setSheetState(() => dueDate = null),
+                                          child: Icon(Icons.clear, size: 14, color: hintColor),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    dueDate != null
+                                        ? DateFormat('dd MMM yyyy').format(dueDate!)
+                                        : 'Tidak ada',
+                                    style: TextStyle(
+                                      color: dueDate != null ? textColor : hintColor,
+                                      fontSize: 13, fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              side: BorderSide(color: Colors.grey.shade400),
+                            ),
+                            child: Text("Batal", style: TextStyle(color: textColor)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: ElevatedButton(
+                            onPressed: () async {
+                              if (nameController.text.trim().isEmpty) {
+                                UIHelper.showError(context, "Nama tidak boleh kosong!");
+                                return;
+                              }
+
+                              final debtRef = FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user!.uid)
+                                  .collection('debts');
+
+                              final amount = double.tryParse(
+                                      amountController.text.replaceAll('.', '')) ??
+                                  0;
+
+                              if (amount <= 0) {
+                                UIHelper.showError(context, "Jumlah harus lebih dari 0!");
+                                return;
+                              }
+
+                              Map<String, dynamic> data = {
+                                'type': selectedType,
+                                'personName': nameController.text.trim(),
+                                'amount': amount,
+                                'note': noteController.text.trim(),
+                                'isPaid': document != null
+                                    ? (document.data() as Map<String, dynamic>)['isPaid'] ?? false
+                                    : false,
+                                'createdAt': Timestamp.fromDate(selectedDate),
+                                'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
+                                'walletId': selectedWalletId,
+                                'updatedAt': FieldValue.serverTimestamp(),
+                              };
+
+                              final batch = FirebaseFirestore.instance.batch();
+
+                              // Reverse old wallet effect when editing
+                              if (document != null) {
+                                final oldData = document.data() as Map<String, dynamic>;
+                                final oldWalletId = oldData['walletId'] as String?;
+                                final oldAmount = (oldData['amount'] ?? 0).toDouble();
+                                final oldType = oldData['type'] ?? 'piutang';
+                                final oldIsPaid = oldData['isPaid'] == true;
+
+                                if (oldWalletId != null && !oldIsPaid) {
+                                  final oldWalletRef = FirebaseFirestore.instance
+                                      .collection('users').doc(user!.uid)
+                                      .collection('wallets').doc(oldWalletId);
+                                  // Reverse: piutang was -, so add back; utang was +, so subtract back
+                                  batch.update(oldWalletRef, {
+                                    'balance': FieldValue.increment(
+                                      oldType == 'piutang' ? oldAmount : -oldAmount,
+                                    ),
+                                  });
+                                }
+                              }
+
+                              // Apply new wallet effect
+                              final isPaid = data['isPaid'] == true;
+                              if (selectedWalletId != null && !isPaid) {
+                                final walletRef = FirebaseFirestore.instance
+                                    .collection('users').doc(user!.uid)
+                                    .collection('wallets').doc(selectedWalletId);
+                                // Piutang (lending): decrease balance; Utang (borrowing): increase balance
+                                batch.update(walletRef, {
+                                  'balance': FieldValue.increment(
+                                    selectedType == 'piutang' ? -amount : amount,
+                                  ),
+                                });
+                              }
+
+                              if (document == null) {
+                                batch.set(debtRef.doc(), data);
+                              } else {
+                                batch.update(debtRef.doc(document.id), data);
+                              }
+
+                              await batch.commit();
+                              // ignore: use_build_context_synchronously
+                              Navigator.pop(context);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: accentColor,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text(
+                              "Simpan",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text("Batal"),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (nameController.text.trim().isEmpty) {
-                      UIHelper.showError(context, "Nama tidak boleh kosong!");
-                      return;
-                    }
-
-                    final debtRef = FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user!.uid)
-                        .collection('debts');
-
-                    final amount = double.tryParse(
-                            amountController.text.replaceAll('.', '')) ??
-                        0;
-
-                    if (amount <= 0) {
-                      UIHelper.showError(context, "Jumlah harus lebih dari 0!");
-                      return;
-                    }
-
-                    Map<String, dynamic> data = {
-                      'type': selectedType,
-                      'personName': nameController.text.trim(),
-                      'amount': amount,
-                      'note': noteController.text.trim(),
-                      'isPaid': document != null
-                          ? (document.data() as Map<String, dynamic>)['isPaid'] ?? false
-                          : false,
-                      'createdAt': Timestamp.fromDate(selectedDate),
-                      'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
-                      'walletId': selectedWalletId,
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    };
-
-                    final batch = FirebaseFirestore.instance.batch();
-
-                    // Reverse old wallet effect when editing
-                    if (document != null) {
-                      final oldData = document.data() as Map<String, dynamic>;
-                      final oldWalletId = oldData['walletId'] as String?;
-                      final oldAmount = (oldData['amount'] ?? 0).toDouble();
-                      final oldType = oldData['type'] ?? 'piutang';
-                      final oldIsPaid = oldData['isPaid'] == true;
-
-                      if (oldWalletId != null && !oldIsPaid) {
-                        final oldWalletRef = FirebaseFirestore.instance
-                            .collection('users').doc(user!.uid)
-                            .collection('wallets').doc(oldWalletId);
-                        // Reverse: piutang was -, so add back; utang was +, so subtract back
-                        batch.update(oldWalletRef, {
-                          'balance': FieldValue.increment(
-                            oldType == 'piutang' ? oldAmount : -oldAmount,
-                          ),
-                        });
-                      }
-                    }
-
-                    // Apply new wallet effect
-                    final isPaid = data['isPaid'] == true;
-                    if (selectedWalletId != null && !isPaid) {
-                      final walletRef = FirebaseFirestore.instance
-                          .collection('users').doc(user!.uid)
-                          .collection('wallets').doc(selectedWalletId);
-                      // Piutang (lending): decrease balance; Utang (borrowing): increase balance
-                      batch.update(walletRef, {
-                        'balance': FieldValue.increment(
-                          selectedType == 'piutang' ? -amount : amount,
-                        ),
-                      });
-                    }
-
-                    if (document == null) {
-                      batch.set(debtRef.doc(), data);
-                    } else {
-                      batch.update(debtRef.doc(document.id), data);
-                    }
-
-                    await batch.commit();
-                    // ignore: use_build_context_synchronously
-                    Navigator.pop(context);
-                  },
-                  child: const Text("Simpan"),
-                ),
-              ],
             );
           },
         );

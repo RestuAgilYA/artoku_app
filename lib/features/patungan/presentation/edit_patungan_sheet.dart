@@ -81,7 +81,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
 
     // Populate participants
     for (final share in widget.patungan.shares) {
-      _participants.add(_EditParticipantEntry(
+      final entry = _EditParticipantEntry(
         nameController: TextEditingController(text: share.name),
         amountController: TextEditingController(
           text: formatter.format(share.amount.toInt()),
@@ -91,9 +91,13 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
         receivableId: share.receivableId,
         paidAt: share.paidAt,
         paidWalletId: share.paidWalletId,
-      ));
+      );
+      entry.nameController.addListener(_onFormChanged);
+      entry.amountController.addListener(_onFormChanged);
+      _participants.add(entry);
     }
 
+    _titleController.addListener(_onFormChanged);
     _totalAmountController.addListener(_onAmountChanged);
     _loadCustomCategories();
   }
@@ -112,6 +116,25 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
   // ── Helpers ──
 
   void _onAmountChanged() => setState(() {});
+
+  void _onFormChanged() => setState(() {});
+
+  bool get _isFormValid {
+    if (_titleController.text.trim().isEmpty) return false;
+    if (_getTotalAmount() <= 0) return false;
+    if (_selectedWalletId == null || _selectedWalletId!.isEmpty) return false;
+    for (final p in _participants) {
+      if (p.nameController.text.trim().isEmpty) return false;
+      final amount = double.tryParse(
+            p.amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+          ) ?? 0;
+      if (amount <= 0) return false;
+    }
+    final sumShares = _getSumOfShares();
+    final totalAmount = _getTotalAmount();
+    if ((sumShares - totalAmount).abs() > 0.01) return false;
+    return true;
+  }
 
   double _getTotalAmount() {
     return double.tryParse(
@@ -133,10 +156,13 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
 
   void _addParticipant() {
     setState(() {
-      _participants.add(_EditParticipantEntry(
+      final entry = _EditParticipantEntry(
         nameController: TextEditingController(),
         amountController: TextEditingController(),
-      ));
+      );
+      entry.nameController.addListener(_onFormChanged);
+      entry.amountController.addListener(_onFormChanged);
+      _participants.add(entry);
     });
   }
 
@@ -742,32 +768,38 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                   SizedBox(
                     width: double.infinity,
                     height: 55,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            _isLoading ? Colors.grey.shade400 : _primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: (_isLoading || !_isFormValid)
+                              ? _primaryColor.withAlpha(100)
+                              : _primaryColor,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
                         ),
+                        onPressed: (_isLoading || !_isFormValid) ? null : _save,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(
+                                "Simpan Perubahan",
+                                style: TextStyle(
+                                  color: _isFormValid
+                                      ? Colors.white
+                                      : Colors.white.withAlpha(120),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
-                      onPressed: _isLoading ? null : _save,
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.white,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              "Simpan Perubahan",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
                     ),
                   ),
                 ],

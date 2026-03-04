@@ -66,9 +66,16 @@ class NotificationService {
     }
 
     // 2. Exact Alarm (Android 12+)
+    // PENTING: Tanpa izin ini, zonedSchedule dengan exactAllowWhileIdle
+    // bisa silently fail atau menjadi inexact pada Android 12+.
+    // Android 14+ bahkan bisa me-revoke permission ini secara otomatis.
     if (await Permission.scheduleExactAlarm.status.isDenied) {
-      LoggerService.warning("Izin Exact Alarm belum aktif.");
-      // await Permission.scheduleExactAlarm.request(); // Opsional
+      LoggerService.warning("Izin Exact Alarm belum aktif, meminta izin...");
+      final alarmStatus = await Permission.scheduleExactAlarm.request();
+      if (!alarmStatus.isGranted) {
+        LoggerService.warning("Exact Alarm DENIED - notifikasi mungkin tidak tepat waktu");
+        granted = false;
+      }
     }
 
     return granted;
@@ -155,6 +162,27 @@ class NotificationService {
 
   Future<void> cancelAllNotifications() async {
     await flutterLocalNotificationsPlugin.cancelAll();
+  }
+
+  /// Debug: cek notifikasi yang masih terjadwal.
+  /// Panggil ini untuk verifikasi apakah alarm masih aktif.
+  Future<void> debugPendingNotifications() async {
+    try {
+      final pending = await flutterLocalNotificationsPlugin
+          .pendingNotificationRequests();
+      LoggerService.info("=== PENDING NOTIFICATIONS: ${pending.length} ===");
+      for (var n in pending) {
+        LoggerService.info("  ID: ${n.id}, Title: ${n.title}");
+      }
+      if (pending.isEmpty) {
+        LoggerService.warning(
+          "TIDAK ADA notifikasi terjadwal! "
+          "Kemungkinan alarm dibatalkan oleh OS battery optimization.",
+        );
+      }
+    } catch (e) {
+      LoggerService.error("Gagal cek pending notifications", e);
+    }
   }
 
   Future<void> showInstantNotification() async {

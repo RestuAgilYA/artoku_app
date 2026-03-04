@@ -208,124 +208,321 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(_isEditMode ? "Edit Transfer" : "Pindahkan Dana"),
-      content: _isLoading
-          ? const SizedBox(
-              height: 100,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildWalletDropdown(
-                      label: "Dari Dompet",
-                      value: _sourceWallet,
-                      onChanged: (wallet) {
-                        setState(() {
-                          _sourceWallet = wallet;
-                          // Jika dompet tujuan sama dengan dompet sumber, reset tujuan
-                          if (_destinationWallet != null && _destinationWallet!.id == wallet?.id) {
-                            _destinationWallet = null;
-                          }
-                        });
-                      },
-                      items: _wallets
-                          .where((w) => w.id != _destinationWallet?.id)
-                          .toList(),
-                    ),
-                    const SizedBox(height: 20),
-                    _buildWalletDropdown(
-                      label: "Ke Dompet",
-                      value: _destinationWallet,
-                      onChanged: (wallet) {
-                        setState(() {
-                          _destinationWallet = wallet;
-                          // Jika dompet sumber sama dengan dompet tujuan, reset sumber
-                          if (_sourceWallet != null && _sourceWallet!.id == wallet?.id) {
-                            _sourceWallet = null;
-                          }
-                        });
-                      },
-                      items: _wallets
-                          .where((w) => w.id != _sourceWallet?.id)
-                          .toList(),
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _amountController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsFormatter()],
-                      decoration: const InputDecoration(
-                        labelText: 'Jumlah',
-                        prefixText: 'Rp ',
-                        border: OutlineInputBorder(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final hintColor = isDark ? Colors.grey : Colors.grey.shade400;
+    const primaryColor = Color(0xFF0F4C5C);
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: _isLoading && _wallets.isEmpty
+            ? const SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Form(
+                key: _formKey,
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header icon
+                      Container(
+                        width: 56, height: 56,
+                        decoration: BoxDecoration(
+                          color: primaryColor.withAlpha(25),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.swap_horiz_rounded, color: primaryColor, size: 30),
                       ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Masukkan jumlah';
-                        }
-                        final amount =
-                            double.tryParse(value.replaceAll('.', '')) ?? 0;
-                        if (amount <= 0) {
-                          return 'Jumlah harus lebih dari 0';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _noteController,
-                      decoration: const InputDecoration(
-                        labelText: 'Catatan (Opsional)',
-                        border: OutlineInputBorder(),
+                      const SizedBox(height: 12),
+                      Text(
+                        _isEditMode ? "Edit Transfer" : "Pindahkan Dana",
+                        style: TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold, color: textColor,
+                        ),
                       ),
-                      maxLines: 2,
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        "Pindahkan saldo antar dompet",
+                        style: TextStyle(color: hintColor, fontSize: 13),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Source wallet
+                      _buildStyledWalletSelector(
+                        context: context,
+                        label: "Dari Dompet",
+                        icon: Icons.output_rounded,
+                        value: _sourceWallet,
+                        items: _wallets.where((w) => w.id != _destinationWallet?.id).toList(),
+                        onChanged: (wallet) {
+                          setState(() {
+                            _sourceWallet = wallet;
+                            if (_destinationWallet != null && _destinationWallet!.id == wallet?.id) {
+                              _destinationWallet = null;
+                            }
+                          });
+                        },
+                        textColor: textColor,
+                        hintColor: hintColor,
+                      ),
+
+                      // Arrow indicator
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Container(
+                          width: 36, height: 36,
+                          decoration: BoxDecoration(
+                            color: primaryColor.withAlpha(20),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.arrow_downward_rounded, color: primaryColor, size: 20),
+                        ),
+                      ),
+
+                      // Destination wallet
+                      _buildStyledWalletSelector(
+                        context: context,
+                        label: "Ke Dompet",
+                        icon: Icons.input_rounded,
+                        value: _destinationWallet,
+                        items: _wallets.where((w) => w.id != _sourceWallet?.id).toList(),
+                        onChanged: (wallet) {
+                          setState(() {
+                            _destinationWallet = wallet;
+                            if (_sourceWallet != null && _sourceWallet!.id == wallet?.id) {
+                              _sourceWallet = null;
+                            }
+                          });
+                        },
+                        textColor: textColor,
+                        hintColor: hintColor,
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Amount field
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text("Jumlah Transfer", style: TextStyle(color: hintColor, fontSize: 12)),
+                      ),
+                      const SizedBox(height: 6),
+                      TextFormField(
+                        controller: _amountController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [ThousandsFormatter()],
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: primaryColor,
+                        ),
+                        decoration: InputDecoration(
+                          prefixText: 'Rp ',
+                          prefixStyle: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                          hintText: "0",
+                          hintStyle: TextStyle(color: Colors.grey.shade300),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: primaryColor, width: 1.5),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'Masukkan jumlah';
+                          final amount = double.tryParse(value.replaceAll('.', '')) ?? 0;
+                          if (amount <= 0) return 'Jumlah harus lebih dari 0';
+                          return null;
+                        },
+                      ),
+                      // Source balance info
+                      if (_sourceWallet != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "Saldo tersedia: ${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(_sourceWallet!.balance)}",
+                              style: TextStyle(color: hintColor, fontSize: 11),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+
+                      // Note field
+                      TextFormField(
+                        controller: _noteController,
+                        style: TextStyle(color: textColor),
+                        decoration: InputDecoration(
+                          labelText: 'Catatan (Opsional)',
+                          labelStyle: TextStyle(color: hintColor, fontSize: 13),
+                          prefixIcon: Icon(Icons.notes_outlined, color: hintColor, size: 20),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(color: primaryColor, width: 1.5),
+                          ),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                side: BorderSide(color: Colors.grey.shade400),
+                              ),
+                              child: Text("Batal", style: TextStyle(color: textColor)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _saveTransfer,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primaryColor,
+                                disabledBackgroundColor: primaryColor.withAlpha(100),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      width: 22, height: 22,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    )
+                                  : Text(
+                                      _isEditMode ? "Perbarui" : "Pindahkan",
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-      actions: _isLoading
-          ? []
-          : [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Batal'),
-              ),
-              ElevatedButton(
-                onPressed: _saveTransfer,
-                child: Text(_isEditMode ? 'Perbarui' : 'Pindahkan'),
-              ),
-            ],
+      ),
     );
   }
 
-  Widget _buildWalletDropdown({
+  Widget _buildStyledWalletSelector({
+    required BuildContext context,
     required String label,
+    required IconData icon,
     required WalletModel? value,
-    required void Function(WalletModel?) onChanged,
     required List<WalletModel> items,
+    required void Function(WalletModel?) onChanged,
+    required Color textColor,
+    required Color hintColor,
   }) {
-    return DropdownButtonFormField<WalletModel>(
-      initialValue: value,
-      onChanged: onChanged,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey.shade800.withAlpha(120) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade300),
       ),
-      items: items.map<DropdownMenuItem<WalletModel>>((WalletModel wallet) {
-        return DropdownMenuItem<WalletModel>(
-          value: wallet,
-          child: Text(
-              "${wallet.name} (${NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0).format(wallet.balance)})"),
-        );
-      }).toList(),
-      validator: (value) => value == null ? 'Pilih salah satu dompet' : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: hintColor),
+              const SizedBox(width: 4),
+              Text(label, style: TextStyle(color: hintColor, fontSize: 11)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          DropdownButtonFormField<WalletModel>(
+            // ignore: deprecated_member_use
+            initialValue: value,
+            onChanged: onChanged,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+              border: InputBorder.none,
+            ),
+            dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+            style: TextStyle(color: textColor, fontSize: 14),
+            hint: Text("Pilih dompet", style: TextStyle(color: hintColor)),
+            items: items.map<DropdownMenuItem<WalletModel>>((WalletModel wallet) {
+              return DropdownMenuItem<WalletModel>(
+                value: wallet,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 10, height: 10,
+                      decoration: BoxDecoration(
+                        color: wallet.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(wallet.name, overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(wallet.balance),
+                      style: TextStyle(color: hintColor, fontSize: 12),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+            validator: (value) => value == null ? 'Pilih salah satu dompet' : null,
+          ),
+        ],
+      ),
     );
   }
 }

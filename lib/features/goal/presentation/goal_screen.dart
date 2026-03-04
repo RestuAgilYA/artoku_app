@@ -31,6 +31,7 @@ class GoalScreen extends StatelessWidget {
               "Target Tabungan",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
+            centerTitle: true,
             backgroundColor: _primaryColor,
             foregroundColor: Colors.white,
             elevation: 0,
