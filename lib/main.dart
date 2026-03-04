@@ -3,11 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'welcome_screen.dart';
-import 'dashboard_screen.dart';
-import 'app_lock_screen.dart';
-import 'notification_service.dart';
-import 'services/remote_config_service.dart';
+import 'package:artoku_app/features/auth/presentation/welcome_screen.dart';
+import 'package:artoku_app/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:artoku_app/features/app_lock/presentation/app_lock_screen.dart';
+import 'package:artoku_app/core/services/notification_service.dart';
+import 'package:artoku_app/core/services/remote_config_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -34,7 +34,7 @@ void main() async {
     final prefs = await SharedPreferences.getInstance();
     // Baca key 'isDarkMode', jika null anggap saja false (Light mode)
     final bool isDarkMode = prefs.getBool('isDarkMode') ?? false;
-
+  
     // Update value notifier sesuai data yang disimpan
     themeNotifier.value = isDarkMode ? ThemeMode.dark : ThemeMode.light;
     // ignore: avoid_print
