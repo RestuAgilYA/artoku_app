@@ -540,25 +540,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _handleNotificationToggle(bool value) async {
+  Future<void> _handleNotificationToggle(bool value) async {
+    if (!mounted) return;
+
     setState(() => _isNotificationOn = value);
-    final prefs = await SharedPreferences.getInstance();
+
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setBool('daily_reminder', value);
 
     if (value) {
-      await NotificationService().requestPermissions();
-      await NotificationService().scheduleAllReminders();
+      // --- Aktifkan notifikasi ---
+      try {
+        await NotificationService().requestPermissions();
+      } catch (e) {
+        debugPrint('[Notifikasi] Gagal request permissions: $e');
+      }
+
+      try {
+        await NotificationService().scheduleAllReminders();
+      } catch (e) {
+        debugPrint('[Notifikasi] Gagal schedule reminders: $e');
+      }
+
       if (mounted) {
-        UIHelper.showSuccess(
+        await UIHelper.showSuccess(
           context,
           "Pengingat Aktif!",
           "Siap Bos! Kami akan ingatkan kamu jam 12:00 (Siang) & 20:00 (Malam).",
         );
       }
     } else {
-      await NotificationService().cancelAllNotifications();
+      // --- Nonaktifkan notifikasi ---
+      try {
+        await NotificationService().cancelAllNotifications();
+      } catch (e) {
+        debugPrint('[Notifikasi] Gagal cancel notifications: $e');
+      }
+
       if (mounted) {
-        UIHelper.showSuccess(
+        await UIHelper.showSuccess(
           context,
           "Pengingat Mati",
           "Jangan lupa catat sendiri ya. Hati-hati lupa! 🥺",

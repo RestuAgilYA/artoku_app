@@ -1,4 +1,5 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,7 +15,11 @@ class RemoteConfigService {
   Future<void> init() async {
     await _remoteConfig.setConfigSettings(RemoteConfigSettings(
       fetchTimeout: const Duration(minutes: 1),
-      minimumFetchInterval: const Duration(hours: 1),
+      // Di debug mode, gunakan interval pendek agar perubahan di Firebase Console langsung terasa.
+      // Di release mode, gunakan 1 jam untuk efisiensi bandwidth & quota.
+      minimumFetchInterval: kDebugMode
+          ? Duration.zero
+          : const Duration(hours: 1),
     ));
 
     // Default values
@@ -27,9 +32,10 @@ class RemoteConfigService {
 
     // Fetch and activate
     try {
-      await _remoteConfig.fetchAndActivate();
+      final bool activated = await _remoteConfig.fetchAndActivate();
+      debugPrint('[RemoteConfig] Init: activated=$activated');
     } catch (e) {
-      debugPrint('Remote Config fetch failed: $e');
+      debugPrint('[RemoteConfig] Init fetch failed: $e');
     }
   }
 
@@ -40,16 +46,20 @@ class RemoteConfigService {
       await _remoteConfig.fetchAndActivate();
 
       final bool forceUpdate = _remoteConfig.getBool('force_update');
-      final String latestVersion = _remoteConfig.getString('latest_version');
-      final String updateUrl = _remoteConfig.getString('update_url');
+      final String latestVersion = _remoteConfig.getString('latest_version').trim();
+      final String updateUrl = _remoteConfig.getString('update_url').trim();
       final String updateMessage = _remoteConfig.getString('update_message');
 
       // Get current app version
       final PackageInfo packageInfo = await PackageInfo.fromPlatform();
-      final String currentVersion = packageInfo.version;
+      final String currentVersion = packageInfo.version.trim();
+
+      debugPrint('[RemoteConfig] Current: $currentVersion | Latest: $latestVersion | ForceUpdate: $forceUpdate');
 
       // Compare versions
       final bool needsUpdate = _isVersionLower(currentVersion, latestVersion);
+
+      debugPrint('[RemoteConfig] Needs update: $needsUpdate');
 
       if (needsUpdate && context.mounted) {
         _showUpdateDialog(
@@ -67,8 +77,8 @@ class RemoteConfigService {
 
   /// Compare semantic versions: returns true if current < latest
   bool _isVersionLower(String current, String latest) {
-    List<int> currentParts = current.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-    List<int> latestParts = latest.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final List<int> currentParts = current.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
+    final List<int> latestParts = latest.split('.').map((e) => int.tryParse(e.trim()) ?? 0).toList();
 
     // Pad to same length
     while (currentParts.length < 3) {
