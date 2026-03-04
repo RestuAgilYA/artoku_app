@@ -258,7 +258,7 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
                 hintText: "Contoh: Beli iPhone, Dana Darurat",
-                prefixIcon: const Icon(Icons.savings_outlined),
+                prefixIcon: const Icon(Icons.flag_outlined),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),
@@ -283,7 +283,7 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
               decoration: InputDecoration(
                 hintText: "0",
                 prefixText: "Rp ",
-                prefixIcon: const Icon(Icons.attach_money),
+                prefixIcon: const Icon(Icons.payments_outlined),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(15),
                 ),

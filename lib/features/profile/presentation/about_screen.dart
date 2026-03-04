@@ -63,7 +63,7 @@ class AboutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              "ArtoKu App v1.1.0",
+              "ArtoKu App v1.2.0",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
