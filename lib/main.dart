@@ -3,10 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'welcome_screen.dart';
-import 'dashboard_screen.dart';
-import 'app_lock_screen.dart';
-import 'notification_service.dart';
+import 'package:artoku_app/features/auth/presentation/welcome_screen.dart';
+import 'package:artoku_app/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:artoku_app/features/app_lock/presentation/app_lock_screen.dart';
+import 'package:artoku_app/core/services/notification_service.dart';
+import 'package:artoku_app/core/services/remote_config_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -17,6 +18,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await NotificationService().init();
+  await RemoteConfigService().init();
 
   // [BARU] Load .env
   try {
@@ -28,11 +30,28 @@ void main() async {
     print("Error loading .env: $e");
   }
 
+  // [FIX] Reschedule notifikasi setiap kali app dibuka
+  // Ini mengatasi masalah notifikasi yang hilang karena:
+  // - Android battery optimization / Doze mode membatalkan alarm
+  // - OEM (Xiaomi, Samsung, Oppo) membersihkan scheduled alarm
+  // - Device reboot yang tidak me-restore alarm dengan benar
+  try {
+    final prefsNotif = await SharedPreferences.getInstance();
+    final isReminderOn = prefsNotif.getBool('daily_reminder') ?? false;
+    if (isReminderOn) {
+      await NotificationService().scheduleAllReminders();
+      await NotificationService().debugPendingNotifications();
+    }
+  } catch (e) {
+    // ignore: avoid_print
+    print("Gagal reschedule notifikasi: $e");
+  }
+
   try {
     final prefs = await SharedPreferences.getInstance();
     // Baca key 'isDarkMode', jika null anggap saja false (Light mode)
     final bool isDarkMode = prefs.getBool('isDarkMode') ?? false;
-
+  
     // Update value notifier sesuai data yang disimpan
     themeNotifier.value = isDarkMode ? ThemeMode.dark : ThemeMode.light;
     // ignore: avoid_print
@@ -121,6 +140,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   DateTime? _pausedTime;
   DateTime? _lastThemeChange;
   DateTime? _lastUnlockTime;
+  bool _updateChecked = false;
 
   @override
   void initState() {
@@ -226,9 +246,23 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
             _lastUnlockTime = DateTime.now(); // Catat waktu unlock 
             _pausedTime = null; // Reset pause time
           });
+          _checkForUpdate();
         },
       );
     }
+    // Check for update when not locked
+    if (!_updateChecked) {
+      _updateChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkForUpdate();
+      });
+    }
     return widget.child;
+  }
+
+  void _checkForUpdate() {
+    if (mounted) {
+      RemoteConfigService().checkForUpdate(context);
+    }
   }
 }
