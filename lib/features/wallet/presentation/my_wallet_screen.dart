@@ -45,6 +45,7 @@ class MyWalletScreen extends StatefulWidget {
 class _MyWalletScreenState extends State<MyWalletScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   int _selectedTab = 0; // 0 = Dompet, 1 = Riwayat Transfer, 2 = Piutang/Utang
+  DateTime _debtFilterMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
   final Color primaryColor = const Color(0xFF0F4C5C);
 
   final List<Color> _presetColors = [
@@ -623,6 +624,12 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          if (_selectedTab == 2)
+            IconButton(
+              icon: Icon(Icons.filter_alt_outlined, color: textColor),
+              tooltip: 'Filter Bulan',
+              onPressed: _showDebtMonthFilterSheet,
+            ),
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: textColor),
             onPressed: () {
@@ -962,6 +969,171 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
   String _formatRupiah(num number) =>
       "Rp ${NumberFormat('#,###', 'id_ID').format(number)}";
 
+  double _parseCurrency(String text) {
+    final cleaned = text.replaceAll('.', '').replaceAll(',', '').trim();
+    return double.tryParse(cleaned) ?? 0;
+  }
+
+  bool _isInSelectedDebtMonth(DateTime date) {
+    return date.year == _debtFilterMonth.year && date.month == _debtFilterMonth.month;
+  }
+
+  String _monthYearLabel(DateTime date) {
+    const List<String> monthNames = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    return '${monthNames[date.month - 1]} ${date.year}';
+  }
+
+  Future<void> _showDebtMonthFilterSheet() async {
+    int selectedMonth = _debtFilterMonth.month;
+    int selectedYear = _debtFilterMonth.year;
+    final DateTime now = DateTime.now();
+    final List<int> yearOptions =
+        List<int>.generate(11, (index) => (now.year - 5) + index);
+
+    final DateTime? picked = await showModalBottomSheet<DateTime>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final Color sheetColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: BoxDecoration(
+                color: sheetColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Filter Piutang/Utang',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Pilih bulan untuk menampilkan histori lunas.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: selectedMonth,
+                          decoration: const InputDecoration(
+                            labelText: 'Bulan',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: List<DropdownMenuItem<int>>.generate(
+                            12,
+                            (index) => DropdownMenuItem<int>(
+                              value: index + 1,
+                              child: Text(_monthYearLabel(DateTime(2000, index + 1, 1)).split(' ').first),
+                            ),
+                          ),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setModalState(() => selectedMonth = value);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          initialValue: selectedYear,
+                          decoration: const InputDecoration(
+                            labelText: 'Tahun',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: yearOptions
+                              .map(
+                                (year) => DropdownMenuItem<int>(
+                                  value: year,
+                                  child: Text(year.toString()),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value != null) {
+                              setModalState(() => selectedYear = value);
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(
+                            ctx,
+                            DateTime(now.year, now.month, 1),
+                          ),
+                          child: const Text('Bulan Ini'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0F4C5C),
+                            foregroundColor: Colors.white,
+                          ),
+                          onPressed: () => Navigator.pop(
+                            ctx,
+                            DateTime(selectedYear, selectedMonth, 1),
+                          ),
+                          child: const Text('Terapkan'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      setState(() {
+        _debtFilterMonth = DateTime(picked.year, picked.month, 1);
+      });
+    }
+  }
+
   // ==================== PIUTANG/UTANG TAB ====================
 
   void _showDebtForm({DocumentSnapshot? document}) async {
@@ -1002,10 +1174,22 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     final noteController = TextEditingController(
       text: document != null ? (document.data() as Map<String, dynamic>)['note'] ?? '' : '',
     );
+    final monthlyPaymentValue = document != null
+      ? (document.data() as Map<String, dynamic>)['monthlyPayment'] as num?
+      : null;
+    final monthlyPaymentController = TextEditingController(
+      text: monthlyPaymentValue != null
+        ? NumberFormat('#,###', 'id_ID').format(monthlyPaymentValue.toInt())
+        : '',
+    );
 
     String selectedType = document != null
         ? (document.data() as Map<String, dynamic>)['type'] ?? 'piutang'
         : 'piutang';
+
+    String selectedScheme = document != null
+      ? (document.data() as Map<String, dynamic>)['paymentScheme'] ?? 'sekali'
+      : 'sekali';
 
     DateTime selectedDate = document != null && (document.data() as Map<String, dynamic>)['createdAt'] != null
         ? ((document.data() as Map<String, dynamic>)['createdAt'] as Timestamp).toDate()
@@ -1032,6 +1216,29 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           builder: (context, setSheetState) {
             final piutangActive = selectedType == 'piutang';
             final accentColor = piutangActive ? const Color(0xFF00897B) : Colors.red;
+            final isCredit = selectedScheme == 'kredit';
+            final amountValue = _parseCurrency(amountController.text);
+            final monthlyPaymentAmount = _parseCurrency(monthlyPaymentController.text);
+            final isMonthlyOver = isCredit &&
+                amountValue > 0 &&
+                monthlyPaymentAmount > amountValue;
+            final canSave = nameController.text.trim().isNotEmpty &&
+                amountValue > 0 &&
+                selectedWalletId != null &&
+                (!isCredit || (monthlyPaymentAmount > 0 && !isMonthlyOver));
+            int? estimateMonths;
+            DateTime? estimatedFinishMonth;
+            if (isCredit &&
+                amountValue > 0 &&
+                monthlyPaymentAmount > 0 &&
+                !isMonthlyOver) {
+              estimateMonths = (amountValue / monthlyPaymentAmount).ceil();
+              estimatedFinishMonth = DateTime(
+                selectedDate.year,
+                selectedDate.month + estimateMonths - 1,
+                1,
+              );
+            }
 
             InputDecoration fieldDecoration({
               required String label,
@@ -1185,6 +1392,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     TextField(
                       controller: nameController,
                       style: TextStyle(color: textColor),
+                      onChanged: (_) => setSheetState(() {}),
                       decoration: fieldDecoration(
                         label: piutangActive ? "Nama Peminjam" : "Nama Pemberi Pinjaman",
                         prefixIcon: Icon(Icons.person_outline, color: hintColor, size: 20),
@@ -1198,6 +1406,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [ThousandsFormatter()],
                       style: TextStyle(color: textColor),
+                      onChanged: (_) => setSheetState(() {}),
                       decoration: fieldDecoration(
                         label: "Jumlah",
                         prefixText: 'Rp ',
@@ -1205,6 +1414,197 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
+
+                    // Skema pembayaran
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Skema Pembayaran",
+                        style: TextStyle(color: hintColor, fontSize: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setSheetState(() {
+                                selectedScheme = 'sekali';
+                                monthlyPaymentController.text = '';
+                              }),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: selectedScheme == 'sekali'
+                                      ? primaryColor
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: selectedScheme == 'sekali'
+                                      ? [
+                                          BoxShadow(
+                                            color: primaryColor.withAlpha(60),
+                                            blurRadius: 8,
+                                          ),
+                                        ]
+                                      : [],
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.payments_outlined,
+                                      size: 16,
+                                      color: selectedScheme == 'sekali'
+                                          ? Colors.white
+                                          : Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Sekali",
+                                      style: TextStyle(
+                                        color: selectedScheme == 'sekali'
+                                            ? Colors.white
+                                            : Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setSheetState(() {
+                                selectedScheme = 'kredit';
+                              }),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: selectedScheme == 'kredit'
+                                      ? primaryColor
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: selectedScheme == 'kredit'
+                                      ? [
+                                          BoxShadow(
+                                            color: primaryColor.withAlpha(60),
+                                            blurRadius: 8,
+                                          ),
+                                        ]
+                                      : [],
+                                ),
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.calendar_month_outlined,
+                                      size: 16,
+                                      color: selectedScheme == 'kredit'
+                                          ? Colors.white
+                                          : Colors.grey,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      "Kredit",
+                                      style: TextStyle(
+                                        color: selectedScheme == 'kredit'
+                                            ? Colors.white
+                                            : Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    if (isCredit) ...[
+                      TextField(
+                        controller: monthlyPaymentController,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [ThousandsFormatter()],
+                        style: TextStyle(color: textColor),
+                        onChanged: (_) => setSheetState(() {}),
+                        decoration: fieldDecoration(
+                          label: "Cicilan per Bulan",
+                          prefixText: 'Rp ',
+                          hint: "0",
+                          suffixIcon: Icon(
+                            Icons.calendar_month_outlined,
+                            color: hintColor,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                      if (isMonthlyOver) ...[
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            "Cicilan per bulan tidak boleh lebih besar dari jumlah.",
+                            style: TextStyle(
+                              color: Colors.red.shade400,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.grey.shade900
+                              : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.schedule, size: 16, color: hintColor),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                estimateMonths != null && estimatedFinishMonth != null
+                                    ? "Estimasi selesai: ${_monthYearLabel(estimatedFinishMonth)} ($estimateMonths bulan)"
+                                    : isMonthlyOver
+                                        ? "Perbaiki cicilan agar estimasi muncul."
+                                        : "Isi jumlah dan cicilan per bulan untuk melihat estimasi.",
+                                style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: hintColor,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
 
                     // Keterangan
                     TextField(
@@ -1376,11 +1776,12 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             child: Text("Batal", style: TextStyle(color: textColor)),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: () async {
+                        if (canSave) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton(
+                              onPressed: () async {
                               if (nameController.text.trim().isEmpty) {
                                 UIHelper.showError(context, "Nama tidak boleh kosong!");
                                 return;
@@ -1391,17 +1792,43 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   .doc(user!.uid)
                                   .collection('debts');
 
-                              final amount = double.tryParse(
-                                      amountController.text.replaceAll('.', '')) ??
-                                  0;
+                              final amount = _parseCurrency(amountController.text);
 
                               if (amount <= 0) {
                                 UIHelper.showError(context, "Jumlah harus lebih dari 0!");
                                 return;
                               }
 
+                              final monthlyPayment =
+                                  _parseCurrency(monthlyPaymentController.text);
+
+                              if (selectedScheme == 'kredit' &&
+                                  monthlyPayment <= 0) {
+                                UIHelper.showError(
+                                  context,
+                                  "Cicilan per bulan harus lebih dari 0!",
+                                );
+                                return;
+                              }
+                              if (selectedScheme == 'kredit' &&
+                                  monthlyPayment > amount) {
+                                UIHelper.showError(
+                                  context,
+                                  "Cicilan per bulan tidak boleh lebih besar dari jumlah.",
+                                );
+                                return;
+                              }
+
                               Map<String, dynamic> data = {
                                 'type': selectedType,
+                                'paymentScheme': selectedScheme,
+                                'monthlyPayment':
+                                    selectedScheme == 'kredit' ? monthlyPayment : null,
+                                'paidAmount': selectedScheme == 'kredit'
+                                  ? (document != null
+                                    ? ((document.data() as Map<String, dynamic>)['paidAmount'] as num?)?.toDouble() ?? 0
+                                    : 0)
+                                  : null,
                                 'personName': nameController.text.trim(),
                                 'amount': amount,
                                 'note': noteController.text.trim(),
@@ -1460,24 +1887,25 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               await batch.commit();
                               // ignore: use_build_context_synchronously
                               Navigator.pop(context);
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: accentColor,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: accentColor,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
                               ),
-                            ),
-                            child: const Text(
-                              "Simpan",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 15,
+                              child: const Text(
+                                "Simpan",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ],
@@ -1485,6 +1913,314 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               ),
             );
           },
+        );
+      },
+    );
+  }
+
+  void _showDebtPaymentDetail(String debtId, Map<String, dynamic> debtData) {
+    final totalAmount = (debtData['amount'] ?? 0).toDouble();
+    final monthlyPayment =
+        (debtData['monthlyPayment'] as num?)?.toDouble() ?? 0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        final sheetBg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        final textColor = isDark ? Colors.white : Colors.black;
+        final hintColor = isDark ? Colors.grey : Colors.grey.shade500;
+        final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          padding: EdgeInsets.only(
+            top: 16, left: 20, right: 20, bottom: bottomInset + 24,
+          ),
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "Detail Cicilan",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user!.uid)
+                    .collection('debts')
+                    .doc(debtId)
+                    .collection('payments')
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Expanded(
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+
+                  final payments = snapshot.data?.docs ?? [];
+                  double totalPaid = 0;
+                  for (final doc in payments) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    totalPaid += (data['amount'] ?? 0).toDouble();
+                  }
+                  if (payments.isEmpty) {
+                    totalPaid =
+                        (debtData['paidAmount'] as num?)?.toDouble() ?? 0;
+                  }
+                  if ((debtData['isPaid'] == true) &&
+                      totalPaid == 0 &&
+                      totalAmount > 0) {
+                    totalPaid = totalAmount;
+                  }
+                  double remaining = totalAmount - totalPaid;
+                  if (remaining < 0) remaining = 0;
+
+                  DateTime? lastPaymentDate;
+                  for (final doc in payments) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final createdAt =
+                        (data['createdAt'] as Timestamp?)?.toDate();
+                    if (createdAt == null) continue;
+                    lastPaymentDate = createdAt;
+                    break;
+                  }
+
+                  final createdAt =
+                      (debtData['createdAt'] as Timestamp?)?.toDate();
+                  final baseDate = lastPaymentDate ?? createdAt ?? DateTime.now();
+
+                  int? estimateMonths;
+                  DateTime? estimatedFinishMonth;
+                  if (remaining > 0 && monthlyPayment > 0) {
+                    estimateMonths =
+                        (remaining / monthlyPayment).ceil();
+                    estimatedFinishMonth = DateTime(
+                      baseDate.year,
+                      baseDate.month + estimateMonths,
+                      1,
+                    );
+                  }
+
+                  return Expanded(
+                    child: Column(
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? Colors.grey.shade900
+                                : Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    "Total Dibayar",
+                                    style:
+                                        TextStyle(fontSize: 11, color: hintColor),
+                                  ),
+                                  Text(
+                                    _formatRupiah(totalPaid),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Color(0xFF00897B),
+                                    ),
+                                  ),
+                                  if (monthlyPayment > 0) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      "Cicilan/bulan: ${_formatRupiah(monthlyPayment)}",
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: hintColor,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    "Sisa",
+                                    style:
+                                        TextStyle(fontSize: 11, color: hintColor),
+                                  ),
+                                  Text(
+                                    _formatRupiah(remaining),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: Colors.red,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (remaining == 0)
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "Status: Lunas",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade600,
+                              ),
+                            ),
+                          )
+                        else
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (estimatedFinishMonth != null)
+                                Text(
+                                  "Estimasi selesai: ${_monthYearLabel(estimatedFinishMonth)} ($estimateMonths bulan)",
+                                  style: TextStyle(
+                                      fontSize: 11, color: hintColor),
+                                ),
+                              if (lastPaymentDate != null)
+                                Text(
+                                  "Pembayaran terakhir: ${DateFormat('dd MMM yyyy').format(lastPaymentDate)}",
+                                  style: TextStyle(
+                                      fontSize: 11, color: hintColor),
+                                ),
+                              if (estimatedFinishMonth == null && monthlyPayment > 0)
+                                Text(
+                                  "Estimasi selesai akan muncul setelah ada pembayaran.",
+                                  style: TextStyle(
+                                      fontSize: 11, color: hintColor),
+                                ),
+                              if (monthlyPayment <= 0)
+                                Text(
+                                  "Estimasi selesai akan muncul setelah cicilan diisi.",
+                                  style: TextStyle(
+                                      fontSize: 11, color: hintColor),
+                                ),
+                            ],
+                          ),
+                        const SizedBox(height: 12),
+                        if (payments.isEmpty)
+                          Expanded(
+                            child: Center(
+                              child: Text(
+                                "Belum ada riwayat pembayaran.",
+                                style: TextStyle(color: hintColor),
+                              ),
+                            ),
+                          )
+                        else
+                          Expanded(
+                            child: ListView.separated(
+                              itemCount: payments.length,
+                              separatorBuilder: (_, __) => Divider(
+                                height: 1,
+                                color: Colors.grey.shade200,
+                              ),
+                              itemBuilder: (context, index) {
+                                final paymentData =
+                                    payments[index].data() as Map<String, dynamic>;
+                                final paymentAmount =
+                                    (paymentData['amount'] ?? 0).toDouble();
+                                final walletName =
+                                    paymentData['walletName'] ?? 'Dompet';
+                                final walletColor =
+                                    (paymentData['walletColor'] as num?)
+                                            ?.toInt() ??
+                                        0xFF0F4C5C;
+                                final createdAt =
+                                    (paymentData['createdAt'] as Timestamp?)
+                                        ?.toDate();
+
+                                return ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 2),
+                                  leading: CircleAvatar(
+                                    radius: 16,
+                                    backgroundColor:
+                                        Color(walletColor).withOpacity(0.15),
+                                    child: Container(
+                                      width: 10,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: Color(walletColor),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    _formatRupiah(paymentAmount),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    createdAt != null
+                                        ? DateFormat('dd MMM yyyy, HH:mm')
+                                            .format(createdAt)
+                                        : '-',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: hintColor,
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    walletName,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: hintColor,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1502,6 +2238,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     final personName = debtData['personName'] ?? '-';
     final amount = (debtData['amount'] ?? 0).toDouble();
     final type = debtData['type'] ?? 'piutang';
+    final paymentScheme = debtData['paymentScheme'] ?? 'sekali';
+    final isCredit = paymentScheme == 'kredit';
+    final monthlyPayment =
+      (debtData['monthlyPayment'] as num?)?.toDouble() ?? 0;
+    final paidAmount = (debtData['paidAmount'] as num?)?.toDouble() ?? 0;
+    double remainingAmount = amount - paidAmount;
+    if (remainingAmount < 0) remainingAmount = 0;
 
     if (currentStatus) {
       // === UNDO LUNAS ===
@@ -1585,6 +2328,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           'isPaid': false,
           'paidAt': null,
           'paidWalletId': null,
+          if (isCredit) 'paidAmount': 0,
         });
 
         // Reverse wallet balance
@@ -1617,7 +2361,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         }
       }
     } else {
-      // === TANDAI LUNAS - tampilkan wallet picker ===
+      // === TANDAI LUNAS / BAYAR CICILAN ===
       List<QueryDocumentSnapshot<Map<String, dynamic>>> wallets = [];
       try {
         final snapshot = await FirebaseFirestore.instance
@@ -1643,7 +2387,240 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           ? originalWalletId
           : wallets.first.id;
 
-      final confirmed = await showDialog<String>(
+      if (!isCredit) {
+        DateTime selectedPaymentDate = DateTime.now();
+        final confirmed = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (ctx) {
+            return StatefulBuilder(
+              builder: (ctx, setDialogState) {
+                // Lookup manual: menghindari ListBase.firstWhere yang
+                // conflict dengan runtime type _JsonQueryDocumentSnapshot.
+                late final QueryDocumentSnapshot<Map<String, dynamic>>
+                    selectedWallet;
+                for (final w in wallets) {
+                  if (w.id == selectedWalletId) {
+                    selectedWallet = w;
+                    break;
+                  }
+                }
+                final selectedWalletData = selectedWallet.data();
+
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  title: const Text(
+                    "Tandai Lunas?",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Tandai ${type == 'piutang' ? 'piutang dari' : 'utang kepada'} "
+                        "$personName lunas sebesar ${_formatRupiah(amount)}.",
+                      ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: selectedPaymentDate,
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2030),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => selectedPaymentDate = picked);
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: InputDecorator(
+                          decoration: InputDecoration(
+                            labelText: "Tanggal Pembayaran",
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            suffixIcon:
+                                const Icon(Icons.calendar_today_outlined),
+                          ),
+                          child: Text(
+                            DateFormat('dd MMM yyyy')
+                                .format(selectedPaymentDate),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        type == 'piutang'
+                            ? "Terima pembayaran ke:"
+                            : "Bayar dari dompet:",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: selectedWalletId,
+                            isExpanded: true,
+                            items: wallets.map((w) {
+                              final wData = w.data();
+                              final wName = wData['name'] ?? 'Dompet';
+                              final wBalance =
+                                  (wData['balance'] as num?)?.toDouble() ?? 0;
+                              return DropdownMenuItem<String>(
+                                value: w.id,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 12,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: Color(
+                                            (wData['color'] as num?)?.toInt() ?? 0xFF0F4C5C),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        wName,
+                                        style: const TextStyle(fontSize: 14),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Text(
+                                      _formatRupiah(wBalance),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                setDialogState(
+                                    () => selectedWalletId = val);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Saldo ${selectedWalletData['name']}: "
+                        "${_formatRupiah((selectedWalletData['balance'] as num?)?.toDouble() ?? 0)}",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, null),
+                      child: const Text("Batal",
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, {
+                        'walletId': selectedWalletId,
+                        'paymentDate': selectedPaymentDate,
+                      }),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text("Lunas",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+
+        if (confirmed == null || !mounted) return;
+
+        final paidWalletId = confirmed['walletId'] as String;
+        final paymentDate = confirmed['paymentDate'] as DateTime;
+
+        try {
+          final batch = FirebaseFirestore.instance.batch();
+
+          final debtRef = FirebaseFirestore.instance
+              .collection('users').doc(user!.uid)
+              .collection('debts').doc(debtId);
+
+          batch.update(debtRef, {
+            'isPaid': true,
+            'paidAt': Timestamp.fromDate(paymentDate),
+            'paidWalletId': paidWalletId,
+          });
+
+          // Adjust chosen wallet balance
+          final walletRef = FirebaseFirestore.instance
+              .collection('users').doc(user!.uid)
+              .collection('wallets').doc(paidWalletId);
+          // Piutang → money comes back (+); Utang → money paid back (-)
+          batch.update(walletRef, {
+            'balance': FieldValue.increment(
+              type == 'piutang' ? amount : -amount,
+            ),
+          });
+
+          await batch.commit();
+          if (mounted) {
+            UIHelper.showSuccess(
+              context,
+              "Berhasil",
+              "$personName telah ditandai lunas.",
+            );
+          }
+        } catch (e) {
+          if (mounted) {
+            UIHelper.showError(
+              context,
+              "Gagal menyimpan: ${e.toString().replaceFirst('Exception: ', '')}",
+            );
+          }
+        }
+        return;
+      }
+
+      if (remainingAmount <= 0) {
+        UIHelper.showError(context, "Sisa pembayaran sudah 0.");
+        return;
+      }
+
+      final double suggestedPayment =
+          monthlyPayment > 0 ? monthlyPayment : remainingAmount;
+      final double initialPayment =
+          suggestedPayment > remainingAmount ? remainingAmount : suggestedPayment;
+      final paymentController = TextEditingController(
+        text: NumberFormat('#,###', 'id_ID').format(initialPayment.toInt()),
+      );
+      DateTime selectedPaymentDate = DateTime.now();
+
+      final confirmed = await showDialog<Map<String, dynamic>>(
         context: context,
         builder: (ctx) {
           return StatefulBuilder(
@@ -1665,7 +2642,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 title: const Text(
-                  "Tandai Lunas?",
+                  "Bayar Cicilan",
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 content: Column(
@@ -1673,10 +2650,60 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Tandai ${type == 'piutang' ? 'piutang dari' : 'utang kepada'} "
-                      "$personName lunas sebesar ${_formatRupiah(amount)}.",
+                      "Pembayaran ${type == 'piutang' ? 'piutang dari' : 'utang kepada'} "
+                      "$personName.",
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Sisa: ${_formatRupiah(remainingAmount)}",
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    if (monthlyPayment > 0)
+                      Text(
+                        "Cicilan/bulan: ${_formatRupiah(monthlyPayment)}",
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: paymentController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [ThousandsFormatter()],
+                      decoration: const InputDecoration(
+                        labelText: "Nominal Bayar",
+                        prefixText: 'Rp ',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: ctx,
+                          initialDate: selectedPaymentDate,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                        );
+                        if (picked != null) {
+                          setDialogState(() => selectedPaymentDate = picked);
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: InputDecorator(
+                        decoration: InputDecoration(
+                          labelText: "Tanggal Pembayaran",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          suffixIcon:
+                              const Icon(Icons.calendar_today_outlined),
+                        ),
+                        child: Text(
+                          DateFormat('dd MMM yyyy')
+                              .format(selectedPaymentDate),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Text(
                       type == 'piutang'
                           ? "Terima pembayaran ke:"
@@ -1736,8 +2763,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
-                              setDialogState(
-                                  () => selectedWalletId = val);
+                              setDialogState(() => selectedWalletId = val);
                             }
                           },
                         ),
@@ -1761,14 +2787,39 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                   ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, selectedWalletId),
+                    onPressed: () {
+                      final paymentAmount =
+                          _parseCurrency(paymentController.text);
+                      if (paymentAmount <= 0) {
+                        UIHelper.showError(
+                            context, "Nominal harus lebih dari 0.");
+                        return;
+                      }
+                      if (paymentAmount > remainingAmount) {
+                        UIHelper.showError(
+                            context, "Nominal melebihi sisa pembayaran.");
+                        return;
+                      }
+                      final walletName =
+                          (selectedWalletData['name'] ?? 'Dompet') as String;
+                      final walletColor =
+                          (selectedWalletData['color'] as num?)?.toInt() ??
+                              0xFF0F4C5C;
+                      Navigator.pop(ctx, {
+                        'walletId': selectedWalletId,
+                        'amount': paymentAmount,
+                        'walletName': walletName,
+                        'walletColor': walletColor,
+                        'paymentDate': selectedPaymentDate,
+                      });
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text("Lunas",
+                    child: const Text("Bayar",
                         style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold)),
@@ -1782,6 +2833,15 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
       if (confirmed == null || !mounted) return;
 
+      final paymentAmount = (confirmed['amount'] as num).toDouble();
+      final paidWalletId = confirmed['walletId'] as String;
+        final walletName = confirmed['walletName'] as String? ?? 'Dompet';
+        final walletColor = (confirmed['walletColor'] as num?)?.toInt() ??
+          0xFF0F4C5C;
+        final paymentDate = confirmed['paymentDate'] as DateTime;
+      final newPaidAmount = paidAmount + paymentAmount;
+      final newIsPaid = newPaidAmount >= amount;
+
       try {
         final batch = FirebaseFirestore.instance.batch();
 
@@ -1789,20 +2849,33 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
             .collection('users').doc(user!.uid)
             .collection('debts').doc(debtId);
 
-        batch.update(debtRef, {
-          'isPaid': true,
-          'paidAt': FieldValue.serverTimestamp(),
-          'paidWalletId': confirmed,
+        final Map<String, dynamic> updateData = {
+          'paidAmount': newPaidAmount,
+          'paidWalletId': paidWalletId,
+          'isPaid': newIsPaid,
+          'updatedAt': FieldValue.serverTimestamp(),
+        };
+        if (newIsPaid) {
+          updateData['paidAt'] = Timestamp.fromDate(paymentDate);
+        }
+
+        batch.update(debtRef, updateData);
+
+        final paymentRef = debtRef.collection('payments').doc();
+        batch.set(paymentRef, {
+          'amount': paymentAmount,
+          'walletId': paidWalletId,
+          'walletName': walletName,
+          'walletColor': walletColor,
+          'createdAt': Timestamp.fromDate(paymentDate),
         });
 
-        // Adjust chosen wallet balance
         final walletRef = FirebaseFirestore.instance
             .collection('users').doc(user!.uid)
-            .collection('wallets').doc(confirmed);
-        // Piutang → money comes back (+); Utang → money paid back (-)
+            .collection('wallets').doc(paidWalletId);
         batch.update(walletRef, {
           'balance': FieldValue.increment(
-            type == 'piutang' ? amount : -amount,
+            type == 'piutang' ? paymentAmount : -paymentAmount,
           ),
         });
 
@@ -1811,7 +2884,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           UIHelper.showSuccess(
             context,
             "Berhasil",
-            "$personName telah ditandai lunas.",
+            newIsPaid
+                ? "$personName telah lunas."
+                : "Cicilan ${_formatRupiah(paymentAmount)} tersimpan.",
           );
         }
       } catch (e) {
@@ -2197,7 +3272,40 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 );
               }
 
-              var docs = snapshot.data!.docs;
+              final List<QueryDocumentSnapshot> allDocs = snapshot.data!.docs;
+
+              // Tampilkan histori bulan ini saja, tetapi item belum lunas tetap tampil
+              // walaupun dibuat di bulan sebelumnya.
+              final List<QueryDocumentSnapshot> docs = allDocs.where((doc) {
+                final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+                final bool isPaid = data['isPaid'] == true;
+                final Timestamp? createdAtTs = data['createdAt'] as Timestamp?;
+
+                if (!isPaid) {
+                  return true;
+                }
+                if (createdAtTs == null) {
+                  return false;
+                }
+                return _isInSelectedDebtMonth(createdAtTs.toDate());
+              }).toList();
+
+              if (docs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.account_balance, size: 60, color: Colors.grey.shade300),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Belum ada data piutang/utang untuk ${_monthYearLabel(_debtFilterMonth)}.",
+                        style: TextStyle(color: Colors.grey.shade500),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                );
+              }
               
               // Sort: Belum Lunas first, then Lunas
               docs.sort((a, b) {
@@ -2220,15 +3328,58 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 final data = doc.data() as Map<String, dynamic>;
                 if (data['isPaid'] == true) continue;
                 final amount = (data['amount'] ?? 0).toDouble();
+                final paymentScheme = data['paymentScheme'] ?? 'sekali';
+                final isCredit = paymentScheme == 'kredit';
+                final paidAmount =
+                    (data['paidAmount'] as num?)?.toDouble() ?? 0;
+                double remaining = isCredit ? (amount - paidAmount) : amount;
+                if (remaining < 0) remaining = 0;
                 if (data['type'] == 'piutang') {
-                  totalPiutang += amount;
+                  totalPiutang += remaining;
                 } else {
-                  totalUtang += amount;
+                  totalUtang += remaining;
                 }
               }
 
               return Column(
                 children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        // ignore: deprecated_member_use
+                        color: const Color(0xFF0F4C5C).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          // ignore: deprecated_member_use
+                          color: const Color(0xFF0F4C5C).withOpacity(0.18),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(
+                            Icons.filter_alt_outlined,
+                            size: 16,
+                            color: Color(0xFF0F4C5C),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Filter aktif: ${_monthYearLabel(_debtFilterMonth)} · Item belum lunas tetap ditampilkan.',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                color: const Color(0xFF0A3B47),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   // Summary
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -2276,7 +3427,18 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         var data = doc.data() as Map<String, dynamic>;
                         bool isPiutang = data['type'] == 'piutang';
                         bool isPaid = data['isPaid'] == true;
+                        final paymentScheme = data['paymentScheme'] ?? 'sekali';
+                        final isCredit = paymentScheme == 'kredit';
                         double amount = (data['amount'] ?? 0).toDouble();
+                        final monthlyPayment =
+                          (data['monthlyPayment'] as num?)?.toDouble() ?? 0;
+                        double paidAmount =
+                          (data['paidAmount'] as num?)?.toDouble() ?? 0;
+                        if (isPaid && paidAmount == 0 && amount > 0) {
+                          paidAmount = amount;
+                        }
+                        double remainingAmount = amount - paidAmount;
+                        if (remainingAmount < 0) remainingAmount = 0;
                         String personName = data['personName'] ?? '-';
                         String note = data['note'] ?? '';
                         DateTime? createdAt = data['createdAt'] != null
@@ -2438,6 +3600,32 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                     ],
                                   ],
                                 ),
+                                if (isCredit) ...[
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.payments_outlined,
+                                          size: 12, color: Colors.grey.shade500),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "Cicilan: ${_formatRupiah(monthlyPayment)} / bulan",
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade600),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Icon(Icons.hourglass_bottom,
+                                          size: 12, color: Colors.grey.shade500),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        "Sisa: ${_formatRupiah(remainingAmount)}",
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey.shade600),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                                 if (note.isNotEmpty) ...[
                                   const SizedBox(height: 4),
                                   Text(
@@ -2463,13 +3651,21 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
                                             Icon(
-                                              isPaid ? Icons.undo : Icons.check_circle_outline,
+                                              isPaid
+                                                  ? Icons.undo
+                                                  : isCredit
+                                                      ? Icons.payments_outlined
+                                                      : Icons.check_circle_outline,
                                               size: 14,
                                               color: isPaid ? Colors.orange : Colors.green,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              isPaid ? "Belum Lunas" : "Tandai Lunas",
+                                              isPaid
+                                                  ? "Belum Lunas"
+                                                  : isCredit
+                                                      ? "Bayar Cicilan"
+                                                      : "Tandai Lunas",
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: isPaid ? Colors.orange : Colors.green,
@@ -2480,6 +3676,42 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                         ),
                                       ),
                                     ),
+                                    if (isCredit) ...[
+                                      const SizedBox(width: 8),
+                                      GestureDetector(
+                                        onTap: () =>
+                                            _showDebtPaymentDetail(doc.id, data),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            // ignore: deprecated_member_use
+                                            color: primaryColor.withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.receipt_long,
+                                                size: 14,
+                                                color: Color(0xFF0F4C5C),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              const Text(
+                                                "Detail",
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Color(0xFF0F4C5C),
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(width: 8),
                                     GestureDetector(
                                       onTap: () => _showDebtForm(document: doc),

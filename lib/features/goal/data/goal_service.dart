@@ -151,6 +151,7 @@ class GoalService {
     required String goalId,
     required double amount,
     String? note,
+    DateTime? transactionDate,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User belum login');
@@ -163,7 +164,9 @@ class GoalService {
     final goalRef = userDocRef.collection('goals').doc(goalId);
     final allocationRef = goalRef.collection('allocations').doc();
     final now = DateTime.now().toUtc();
+    final allocationDate = (transactionDate ?? now).toUtc();
     final timestamp = Timestamp.fromDate(now);
+    final allocationTimestamp = Timestamp.fromDate(allocationDate);
 
     await _firestore.runTransaction((transaction) async {
       final goalSnap = await transaction.get(goalRef);
@@ -198,7 +201,7 @@ class GoalService {
         'amount': amount,
         'type': 'deposit',
         'note': note?.trim(),
-        'createdAt': timestamp,
+        'createdAt': allocationTimestamp,
       });
     });
 
@@ -214,6 +217,7 @@ class GoalService {
     required String goalId,
     required double amount,
     String? note,
+    DateTime? transactionDate,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User belum login');
@@ -226,7 +230,9 @@ class GoalService {
     final goalRef = userDocRef.collection('goals').doc(goalId);
     final allocationRef = goalRef.collection('allocations').doc();
     final now = DateTime.now().toUtc();
+    final allocationDate = (transactionDate ?? now).toUtc();
     final timestamp = Timestamp.fromDate(now);
+    final allocationTimestamp = Timestamp.fromDate(allocationDate);
 
     await _firestore.runTransaction((transaction) async {
       final goalSnap = await transaction.get(goalRef);
@@ -270,7 +276,7 @@ class GoalService {
         'amount': amount,
         'type': 'withdraw',
         'note': note?.trim(),
-        'createdAt': timestamp,
+        'createdAt': allocationTimestamp,
       });
     });
 
@@ -486,5 +492,139 @@ class GoalService {
         .collection('goals')
         .doc(goalId)
         .snapshots();
+  }
+
+  // ----------------------------------------------------------
+  // EDIT ALLOCATION (amount, note, createdAt)
+  // ----------------------------------------------------------
+  static Future<void> editAllocation({
+    required String goalId,
+    required String allocationId,
+    required double amount,
+    String? note,
+    DateTime? transactionDate,
+  }) async {
+    if (amount <= 0) {
+      throw Exception('Jumlah alokasi harus lebih dari 0');
+    }
+
+    final userDocRef = _userDoc();
+    final goalRef = userDocRef.collection('goals').doc(goalId);
+    final allocationRef = goalRef.collection('allocations').doc(allocationId);
+    final now = DateTime.now().toUtc();
+    final timestamp = Timestamp.fromDate(now);
+
+    await _firestore.runTransaction((transaction) async {
+      final goalSnap = await transaction.get(goalRef);
+      final allocationSnap = await transaction.get(allocationRef);
+
+      if (!goalSnap.exists) throw Exception('Target tabungan tidak ditemukan');
+      if (!allocationSnap.exists) throw Exception('Riwayat alokasi tidak ditemukan');
+
+      final goalData = goalSnap.data() as Map<String, dynamic>;
+      final allocationData = allocationSnap.data() as Map<String, dynamic>;
+
+      final currentStatus = goalData['status'] as String? ?? 'active';
+      if (currentStatus == 'cancelled') {
+        throw Exception('Riwayat tidak bisa diedit karena target dibatalkan');
+      }
+
+      final currentAmount = (goalData['currentAmount'] as num?)?.toDouble() ?? 0;
+      final targetAmount = (goalData['targetAmount'] as num?)?.toDouble() ?? 0;
+
+      final oldAmount = (allocationData['amount'] as num?)?.toDouble() ?? 0;
+      final type = allocationData['type'] as String? ?? 'deposit';
+
+      double newGoalAmount;
+      if (type == 'deposit') {
+        newGoalAmount = currentAmount - oldAmount + amount;
+      } else {
+        newGoalAmount = currentAmount + oldAmount - amount;
+      }
+
+      if (newGoalAmount < 0) {
+        throw Exception('Edit membuat saldo target menjadi negatif');
+      }
+
+      final String newStatus = newGoalAmount >= targetAmount ? 'completed' : 'active';
+
+      transaction.update(goalRef, {
+        'currentAmount': newGoalAmount,
+        'status': newStatus,
+        'updatedAt': timestamp,
+      });
+
+      final Map<String, dynamic> allocationUpdate = {
+        'amount': amount,
+        'note': note?.trim(),
+      };
+
+      if (transactionDate != null) {
+        allocationUpdate['createdAt'] = Timestamp.fromDate(transactionDate.toUtc());
+      }
+
+      transaction.update(allocationRef, allocationUpdate);
+    });
+
+    LoggerService.info('Allocation $allocationId pada goal $goalId berhasil diedit.');
+  }
+
+  // ----------------------------------------------------------
+  // DELETE ALLOCATION
+  // ----------------------------------------------------------
+  static Future<void> deleteAllocation({
+    required String goalId,
+    required String allocationId,
+  }) async {
+    final userDocRef = _userDoc();
+    final goalRef = userDocRef.collection('goals').doc(goalId);
+    final allocationRef = goalRef.collection('allocations').doc(allocationId);
+    final now = DateTime.now().toUtc();
+    final timestamp = Timestamp.fromDate(now);
+
+    await _firestore.runTransaction((transaction) async {
+      final goalSnap = await transaction.get(goalRef);
+      final allocationSnap = await transaction.get(allocationRef);
+
+      if (!goalSnap.exists) throw Exception('Target tabungan tidak ditemukan');
+      if (!allocationSnap.exists) throw Exception('Riwayat alokasi tidak ditemukan');
+
+      final goalData = goalSnap.data() as Map<String, dynamic>;
+      final allocationData = allocationSnap.data() as Map<String, dynamic>;
+
+      final currentStatus = goalData['status'] as String? ?? 'active';
+      if (currentStatus == 'cancelled') {
+        throw Exception('Riwayat tidak bisa dihapus karena target dibatalkan');
+      }
+
+      final currentAmount = (goalData['currentAmount'] as num?)?.toDouble() ?? 0;
+      final targetAmount = (goalData['targetAmount'] as num?)?.toDouble() ?? 0;
+
+      final amount = (allocationData['amount'] as num?)?.toDouble() ?? 0;
+      final type = allocationData['type'] as String? ?? 'deposit';
+
+      double newGoalAmount;
+      if (type == 'deposit') {
+        newGoalAmount = currentAmount - amount;
+      } else {
+        newGoalAmount = currentAmount + amount;
+      }
+
+      if (newGoalAmount < 0) {
+        throw Exception('Hapus data membuat saldo target menjadi negatif');
+      }
+
+      final String newStatus = newGoalAmount >= targetAmount ? 'completed' : 'active';
+
+      transaction.update(goalRef, {
+        'currentAmount': newGoalAmount,
+        'status': newStatus,
+        'updatedAt': timestamp,
+      });
+
+      transaction.delete(allocationRef);
+    });
+
+    LoggerService.info('Allocation $allocationId pada goal $goalId berhasil dihapus.');
   }
 }

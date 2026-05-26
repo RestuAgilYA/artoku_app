@@ -34,6 +34,18 @@ class DetailGoalScreen extends StatelessWidget {
     return "${date.day} ${months[date.month - 1]} ${date.year}, ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
   }
 
+  String _formatMonthYear(DateTime date) {
+    List<String> months = [
+      "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+      "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+    ];
+    return "${months[date.month - 1]} ${date.year}";
+  }
+
+  DateTime _stripTime(DateTime dt) {
+    return DateTime(dt.year, dt.month, dt.day);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -679,7 +691,7 @@ class DetailGoalScreen extends StatelessWidget {
             color: Theme.of(context).textTheme.bodyLarge?.color,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         StreamBuilder<QuerySnapshot>(
           stream: GoalService.getAllocationsStream(goalId: goalId),
           builder: (context, snapshot) {
@@ -715,7 +727,16 @@ class DetailGoalScreen extends StatelessWidget {
 
             final allocations = snapshot.data!.docs
                 .map((doc) => GoalAllocation.fromSnapshot(doc))
-                .toList();
+                .toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+            final Map<DateTime, List<GoalAllocation>> groupedAllocations = {};
+            for (final alloc in allocations) {
+              final key = DateTime(alloc.createdAt.year, alloc.createdAt.month);
+              groupedAllocations.putIfAbsent(key, () => []).add(alloc);
+            }
+            final monthKeys = groupedAllocations.keys.toList()
+              ..sort((a, b) => b.compareTo(a));
 
             return Container(
               decoration: BoxDecoration(
@@ -733,55 +754,54 @@ class DetailGoalScreen extends StatelessWidget {
               child: ListView.separated(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: allocations.length,
+                itemCount: monthKeys.length,
                 separatorBuilder: (_, __) => Divider(
                   height: 1,
                   color: Colors.grey.shade200,
                 ),
                 itemBuilder: (context, index) {
-                  final alloc = allocations[index];
-                  final isDeposit = alloc.type == AllocationType.deposit;
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: isDeposit
-                          // ignore: deprecated_member_use
-                          ? Colors.green.withOpacity(0.1)
-                          // ignore: deprecated_member_use
-                          : Colors.red.withOpacity(0.1),
-                      child: Icon(
-                        isDeposit ? Icons.arrow_downward : Icons.arrow_upward,
-                        color: isDeposit ? Colors.green : Colors.red,
-                        size: 18,
+                  final monthKey = monthKeys[index];
+                  final monthAllocations = groupedAllocations[monthKey] ?? [];
+                  monthAllocations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+                  return Theme(
+                    data: Theme.of(context)
+                        .copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      tilePadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 2,
                       ),
-                    ),
-                    title: Text(
-                      "${isDeposit ? '+' : '-'} ${_formatRupiah(alloc.amount)}",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: isDeposit ? Colors.green : Colors.red,
+                      childrenPadding: const EdgeInsets.only(bottom: 6),
+                      title: Text(
+                        _formatMonthYear(monthKey),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
                       ),
-                    ),
-                    subtitle: Text(
-                      alloc.note?.isNotEmpty == true
-                          ? alloc.note!
-                          : alloc.type.label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
+                      subtitle: Text(
+                        "${monthAllocations.length} transaksi",
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade500,
+                        ),
                       ),
-                    ),
-                    trailing: Text(
-                      _formatDateTime(alloc.createdAt),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.grey.shade500,
-                      ),
+                      children: [
+                        for (int i = 0; i < monthAllocations.length; i++) ...[
+                          _buildAllocationItem(
+                            context,
+                            goal,
+                            monthAllocations[i],
+                          ),
+                          if (i != monthAllocations.length - 1)
+                            Divider(
+                              height: 1,
+                              color: Colors.grey.shade200,
+                            ),
+                        ],
+                      ],
                     ),
                   );
                 },
@@ -790,6 +810,125 @@ class DetailGoalScreen extends StatelessWidget {
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildAllocationItem(
+      BuildContext context, GoalModel goal, GoalAllocation alloc) {
+    final isDeposit = alloc.type == AllocationType.deposit;
+    return Dismissible(
+      key: ValueKey(alloc.id),
+      direction: DismissDirection.horizontal,
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        color: const Color(0xFF0F4C5C),
+        child: const Row(
+          children: [
+            Icon(Icons.edit, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              "Edit",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+      secondaryBackground: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        color: Colors.red,
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              "Hapus",
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(width: 8),
+            Icon(Icons.delete, color: Colors.white),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          await _showEditAllocationDialog(context, goal, alloc);
+          return false;
+        }
+
+        final bool shouldDelete =
+            await _showDeleteAllocationConfirmation(context, goal, alloc);
+        return shouldDelete;
+      },
+      onDismissed: (_) async {
+        try {
+          await GoalService.deleteAllocation(
+            goalId: goal.id,
+            allocationId: alloc.id,
+          );
+          if (context.mounted) {
+            UIHelper.showSuccess(
+              context,
+              "Berhasil",
+              "Riwayat alokasi berhasil dihapus.",
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            UIHelper.showError(
+              context,
+              e.toString().replaceAll('Exception: ', ''),
+            );
+          }
+        }
+      },
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 4,
+        ),
+        leading: CircleAvatar(
+          radius: 18,
+          backgroundColor: isDeposit
+              // ignore: deprecated_member_use
+              ? Colors.green.withOpacity(0.1)
+              // ignore: deprecated_member_use
+              : Colors.red.withOpacity(0.1),
+          child: Icon(
+            isDeposit ? Icons.arrow_downward : Icons.arrow_upward,
+            color: isDeposit ? Colors.green : Colors.red,
+            size: 18,
+          ),
+        ),
+        title: Text(
+          "${isDeposit ? '+' : '-'} ${_formatRupiah(alloc.amount)}",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: isDeposit ? Colors.green : Colors.red,
+          ),
+        ),
+        subtitle: Text(
+          alloc.note?.isNotEmpty == true ? alloc.note! : alloc.type.label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey.shade500,
+          ),
+        ),
+        trailing: Text(
+          _formatDateTime(alloc.createdAt),
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.grey.shade500,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1004,6 +1143,7 @@ class DetailGoalScreen extends StatelessWidget {
       BuildContext context, GoalModel goal, bool isDeposit) {
     final amountController = TextEditingController();
     final noteController = TextEditingController();
+    DateTime selectedDate = DateTime.now();
     bool isLoading = false;
 
     showModalBottomSheet(
@@ -1129,6 +1269,49 @@ class DetailGoalScreen extends StatelessWidget {
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+
+                  // Tanggal transaksi
+                  InkWell(
+                    onTap: isLoading
+                        ? null
+                        : () async {
+                            final DateTime today = DateTime.now();
+                            final DateTime firstDate = DateTime(today.year - 5, 1, 1);
+                            final DateTime lastDate = DateTime(today.year + 5, 12, 31);
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: _stripTime(selectedDate),
+                              firstDate: firstDate,
+                              lastDate: lastDate,
+                            );
+                            if (picked != null) {
+                              setDialogState(() {
+                                selectedDate = DateTime(
+                                  picked.year,
+                                  picked.month,
+                                  picked.day,
+                                  selectedDate.hour,
+                                  selectedDate.minute,
+                                  selectedDate.second,
+                                  selectedDate.millisecond,
+                                  selectedDate.microsecond,
+                                );
+                              });
+                            }
+                          },
+                    borderRadius: BorderRadius.circular(15),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: isDeposit ? "Tanggal Setor" : "Tanggal Tarik",
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        suffixIcon: const Icon(Icons.calendar_today_outlined),
+                      ),
+                      child: Text(_formatDate(selectedDate)),
+                    ),
+                  ),
                   const SizedBox(height: 20),
 
                   // Submit button
@@ -1159,6 +1342,7 @@ class DetailGoalScreen extends StatelessWidget {
                                     note: noteController.text.trim().isEmpty
                                         ? null
                                         : noteController.text.trim(),
+                                    transactionDate: selectedDate,
                                   );
                                 } else {
                                   await GoalService.withdrawGoal(
@@ -1167,6 +1351,7 @@ class DetailGoalScreen extends StatelessWidget {
                                     note: noteController.text.trim().isEmpty
                                         ? null
                                         : noteController.text.trim(),
+                                    transactionDate: selectedDate,
                                   );
                                 }
 
@@ -1224,5 +1409,258 @@ class DetailGoalScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Future<void> _showEditAllocationDialog(
+    BuildContext context,
+    GoalModel goal,
+    GoalAllocation allocation,
+  ) async {
+    final TextEditingController amountController = TextEditingController(
+      text: allocation.amount
+          .toStringAsFixed(0)
+          .replaceAllMapped(
+            RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+            (Match m) => '${m[1]}.',
+          ),
+    );
+    final TextEditingController noteController = TextEditingController(
+      text: allocation.note ?? '',
+    );
+    DateTime selectedDate = allocation.createdAt;
+    bool isLoading = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Container(
+              padding: EdgeInsets.only(
+                top: 20,
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+              ),
+              decoration: BoxDecoration(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Edit ${allocation.type == AllocationType.deposit ? 'Setor' : 'Tarik'}',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      ThousandsSeparatorFormatter(),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Jumlah (Rp)',
+                      prefixText: 'Rp ',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: noteController,
+                    decoration: InputDecoration(
+                      labelText: 'Catatan (opsional)',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: isLoading
+                        ? null
+                        : () async {
+                            final DateTime now = DateTime.now();
+                            final DateTime? picked = await showDatePicker(
+                              context: context,
+                              initialDate: _stripTime(selectedDate),
+                              firstDate: DateTime(now.year - 5, 1, 1),
+                              lastDate: DateTime(now.year + 5, 12, 31),
+                            );
+                            if (picked != null) {
+                              setStateModal(() {
+                                selectedDate = DateTime(
+                                  picked.year,
+                                  picked.month,
+                                  picked.day,
+                                  selectedDate.hour,
+                                  selectedDate.minute,
+                                  selectedDate.second,
+                                  selectedDate.millisecond,
+                                  selectedDate.microsecond,
+                                );
+                              });
+                            }
+                          },
+                    borderRadius: BorderRadius.circular(15),
+                    child: InputDecorator(
+                      decoration: InputDecoration(
+                        labelText: 'Tanggal Transaksi',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        suffixIcon: const Icon(Icons.calendar_today_outlined),
+                      ),
+                      child: Text(_formatDate(selectedDate)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () async {
+                              final String amountText = amountController.text
+                                  .replaceAll('.', '')
+                                  .replaceAll(',', '')
+                                  .trim();
+                              final double? amount = double.tryParse(amountText);
+
+                              if (amount == null || amount <= 0) {
+                                UIHelper.showError(context, 'Masukkan jumlah yang valid');
+                                return;
+                              }
+
+                              setStateModal(() => isLoading = true);
+                              try {
+                                await GoalService.editAllocation(
+                                  goalId: goal.id,
+                                  allocationId: allocation.id,
+                                  amount: amount,
+                                  note: noteController.text.trim().isEmpty
+                                      ? null
+                                      : noteController.text.trim(),
+                                  transactionDate: selectedDate,
+                                );
+
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  UIHelper.showSuccess(
+                                    context,
+                                    'Berhasil',
+                                    'Riwayat alokasi berhasil diperbarui.',
+                                  );
+                                }
+                              } catch (e) {
+                                setStateModal(() => isLoading = false);
+                                if (context.mounted) {
+                                  UIHelper.showError(
+                                    context,
+                                    e.toString().replaceAll('Exception: ', ''),
+                                  );
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Text(
+                              'Simpan Perubahan',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _showDeleteAllocationConfirmation(
+    BuildContext context,
+    GoalModel goal,
+    GoalAllocation allocation,
+  ) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Hapus Riwayat?',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Riwayat ${allocation.type == AllocationType.deposit ? 'setor' : 'tarik'} '
+          '${_formatRupiah(allocation.amount)} akan dihapus.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Hapus',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) {
+      return false;
+    }
+
+    // Validation ringan agar parameter dipakai dan intent tetap jelas.
+    if (goal.id.isEmpty) {
+      return false;
+    }
+
+    return true;
   }
 }
