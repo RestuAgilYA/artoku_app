@@ -1,39 +1,11 @@
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
+
 import 'package:artoku_app/core/services/logger_service.dart';
 import 'package:intl/intl.dart';
-
-// Custom Formatter
-class ThousandsSeparatorInputFormatter extends TextInputFormatter {
-  static const separator = '.'; // Separator for thousands
-
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    // Get the numeric value
-    String newText = newValue.text.replaceAll(separator, '');
-
-    if (int.tryParse(newText) == null) {
-      return oldValue;
-    }
-
-    final formatter = NumberFormat('#,###');
-    String newFormattedText = formatter.format(int.parse(newText)).replaceAll(',', separator);
-
-    return newValue.copyWith(
-      text: newFormattedText,
-      selection: TextSelection.collapsed(offset: newFormattedText.length),
-    );
-  }
-}
-
 
 class AddTransactionSheet extends StatefulWidget {
   // Parameter untuk menerima hasil analisa Gemini
@@ -69,6 +41,8 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
 
   late TextEditingController _amountController;
   late TextEditingController _noteController;
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
   DateTime _selectedDate = DateTime.now();
 
   final User? user = FirebaseAuth.instance.currentUser;
@@ -127,7 +101,9 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
       double amount = (data['amount'] ?? 0).toDouble();
       if (amount > 0) {
         final formatter = NumberFormat('#,###');
-        _amountController.text = formatter.format(amount.toInt()).replaceAll(',', '.');
+        _amountController.text = formatter
+            .format(amount.toInt())
+            .replaceAll(',', '.');
       }
 
       // 6. Tanggal
@@ -736,11 +712,10 @@ class _AddTransactionSheetState extends State<AddTransactionSheet> {
             Text("Nominal", style: TextStyle(color: hintColor, fontSize: 12)),
             TextField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: false),
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                ThousandsSeparatorInputFormatter(),
-              ],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: false,
+              ),
+              inputFormatters: [_currencyFormatter],
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,

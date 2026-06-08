@@ -184,15 +184,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showImageSourceOptions() {
+    final parentContext = context;
     showModalBottomSheet(
-      context: context,
+      context: parentContext,
       backgroundColor: Colors.transparent,
-      builder: (BuildContext context) {
+      builder: (BuildContext sheetContext) {
         return Container(
           margin: const EdgeInsets.all(20),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: Theme.of(sheetContext).scaffoldBackgroundColor,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -212,7 +213,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Theme.of(context).textTheme.bodyLarge?.color,
+                  color: Theme.of(sheetContext).textTheme.bodyLarge?.color,
                 ),
               ),
               const SizedBox(height: 20),
@@ -221,9 +222,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        Navigator.pop(context);
+                        Navigator.pop(sheetContext);
+                        if (!parentContext.mounted) return;
                         AiTransactionHelper.pickAndScanImage(
-                          context,
+                          parentContext,
                           ImageSource.camera,
                         );
                       },
@@ -262,9 +264,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Expanded(
                     child: GestureDetector(
                       onTap: () {
-                        Navigator.pop(context);
+                        Navigator.pop(sheetContext);
+                        if (!parentContext.mounted) return;
                         AiTransactionHelper.pickAndScanImage(
-                          context,
+                          parentContext,
                           ImageSource.gallery,
                         );
                       },
@@ -637,7 +640,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         int count = 0;
         if (snapshot.hasData) {
           count = snapshot.data!.docs.length;
-          for (var doc in snapshot.data!.docs){
+          for (var doc in snapshot.data!.docs) {
             totalBalance += (doc['balance'] ?? 0).toDouble();
           }
         }
@@ -879,7 +882,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   data,
                   user,
                 );
-              // ignore: unnecessary_to_list_in_spreads
+                // ignore: unnecessary_to_list_in_spreads
               }).toList(),
             ],
           ),
