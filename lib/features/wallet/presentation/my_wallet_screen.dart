@@ -2175,6 +2175,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   leading: CircleAvatar(
                                     radius: 16,
                                     backgroundColor:
+                                        // ignore: deprecated_member_use
                                         Color(walletColor).withOpacity(0.15),
                                     child: Container(
                                       width: 10,
