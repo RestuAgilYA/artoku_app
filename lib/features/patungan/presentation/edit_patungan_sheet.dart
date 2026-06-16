@@ -1,38 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:artoku_app/features/patungan/data/patungan_model.dart';
 import 'package:artoku_app/features/patungan/data/patungan_service.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 
 // ============================================================
 // EDIT PATUNGAN SHEET
 // ============================================================
-class _ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (newText.isEmpty) return const TextEditingValue();
-
-    final number = int.parse(newText);
-    final formatter = NumberFormat('#,###', 'id_ID');
-    String formattedText = formatter.format(number);
-
-    return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
-  }
-}
 
 class EditPatunganSheet extends StatefulWidget {
   final PatunganModel patungan;
@@ -48,6 +25,8 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
 
   late final TextEditingController _titleController;
   late final TextEditingController _totalAmountController;
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
 
   String? _selectedWalletId;
   String? _selectedWalletName;
@@ -56,7 +35,12 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
   // Kategori
   String _selectedCategory = 'Patungan';
   List<String> _expenseCategories = [
-    'Makanan', 'Transport', 'Belanja', 'Tagihan', 'Hiburan', 'Lainnya'
+    'Makanan',
+    'Transport',
+    'Belanja',
+    'Tagihan',
+    'Hiburan',
+    'Lainnya',
   ];
 
   // Participant entries – menyimpan state asli dari patungan
@@ -125,9 +109,11 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
     if (_selectedWalletId == null || _selectedWalletId!.isEmpty) return false;
     for (final p in _participants) {
       if (p.nameController.text.trim().isEmpty) return false;
-      final amount = double.tryParse(
+      final amount =
+          double.tryParse(
             p.amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
-          ) ?? 0;
+          ) ??
+          0;
       if (amount <= 0) return false;
     }
     final sumShares = _getSumOfShares();
@@ -146,7 +132,8 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
   double _getSumOfShares() {
     double sum = 0;
     for (final p in _participants) {
-      sum += double.tryParse(
+      sum +=
+          double.tryParse(
             p.amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
           ) ??
           0;
@@ -201,7 +188,8 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
     int editableCount = 0;
     for (final p in _participants) {
       if (p.isPaid) {
-        lockedAmount += double.tryParse(
+        lockedAmount +=
+            double.tryParse(
               p.amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
             ) ??
             0;
@@ -278,7 +266,9 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Hapus Kategori?'),
-        content: Text("Kategori '\$category' akan dihapus dari daftar pilihan."),
+        content: Text(
+          "Kategori '\$category' akan dihapus dari daftar pilihan.",
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -286,10 +276,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Hapus',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -305,13 +292,9 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
         }
       });
       if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set(
-              {'expense_categories': _expenseCategories},
-              SetOptions(merge: true),
-            );
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'expense_categories': _expenseCategories,
+        }, SetOptions(merge: true));
       }
     });
   }
@@ -336,9 +319,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
             onPressed: () async {
               final newCat = catController.text.trim();
               if (newCat.isEmpty) return;
@@ -351,18 +332,14 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(user.uid)
-                    .set(
-                      {'expense_categories': _expenseCategories},
-                      SetOptions(merge: true),
-                    );
+                    .set({
+                      'expense_categories': _expenseCategories,
+                    }, SetOptions(merge: true));
               }
               // ignore: use_build_context_synchronously
               if (mounted) Navigator.pop(ctx);
             },
-            child: const Text(
-              'Simpan',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -401,11 +378,12 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
         );
         return;
       }
-      final amount = double.tryParse(
-            _participants[i]
-                .amountController
-                .text
-                .replaceAll(RegExp(r'[^0-9]'), ''),
+      final amount =
+          double.tryParse(
+            _participants[i].amountController.text.replaceAll(
+              RegExp(r'[^0-9]'),
+              '',
+            ),
           ) ??
           0;
       if (amount <= 0) {
@@ -493,8 +471,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
     final Color sheetBgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black;
     final Color hintColor = isDark ? Colors.grey : Colors.grey.shade400;
-    final Color chipBg =
-        isDark ? Colors.grey.shade800 : Colors.grey.shade100;
+    final Color chipBg = isDark ? Colors.grey.shade800 : Colors.grey.shade100;
     final Color chipText = isDark ? Colors.white70 : Colors.black87;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -617,8 +594,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                       ActionChip(
                         label: const Icon(Icons.add, size: 16),
                         backgroundColor: chipBg,
-                        labelPadding:
-                            const EdgeInsets.symmetric(horizontal: 4),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         onPressed: _showAddCategoryDialog,
                       ),
                     ],
@@ -634,7 +610,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                   TextField(
                     controller: _totalAmountController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [_ThousandsFormatter()],
+                    inputFormatters: [_currencyFormatter],
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -738,8 +714,8 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                             remaining.abs() < 0.01
                                 ? "Pembagian sudah pas! ✓"
                                 : remaining > 0
-                                    ? "Sisa belum dibagi:"
-                                    : "Kelebihan:",
+                                ? "Sisa belum dibagi:"
+                                : "Kelebihan:",
                             style: TextStyle(
                               color: remaining.abs() < 0.01
                                   ? Colors.green
@@ -752,8 +728,9 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                             Text(
                               UIHelper.formatRupiah(remaining.abs()),
                               style: TextStyle(
-                                color:
-                                    remaining > 0 ? Colors.orange : Colors.red,
+                                color: remaining > 0
+                                    ? Colors.orange
+                                    : Colors.red,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -854,8 +831,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
             children: wallets.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               final isSelected = _selectedWalletId == doc.id;
-              final wColor =
-                  Color((data['color'] as int?) ?? 0xFF0F4C5C);
+              final wColor = Color((data['color'] as int?) ?? 0xFF0F4C5C);
               return GestureDetector(
                 onTap: () => setState(() {
                   _selectedWalletId = doc.id;
@@ -1003,7 +979,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
             child: TextField(
               controller: p.amountController,
               keyboardType: TextInputType.number,
-              inputFormatters: [_ThousandsFormatter()],
+              inputFormatters: [_currencyFormatter],
               onChanged: (_) => setState(() {}),
               style: TextStyle(color: textColor, fontSize: 14),
               decoration: InputDecoration(
@@ -1070,11 +1046,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
             padding: const EdgeInsets.only(bottom: 6),
             child: Row(
               children: [
-                const Icon(
-                  Icons.check_circle,
-                  size: 12,
-                  color: Colors.green,
-                ),
+                const Icon(Icons.check_circle, size: 12, color: Colors.green),
                 const SizedBox(width: 4),
                 Text(
                   "Sudah Bayar (terkunci)",
@@ -1088,10 +1060,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                   const Spacer(),
                   Text(
                     DateFormat('dd MMM yyyy').format(p.paidAt!),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                   ),
                 ],
               ],
@@ -1124,10 +1093,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                 child: TextField(
                   controller: p.nameController,
                   enabled: false,
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
                   decoration: InputDecoration(
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(
@@ -1149,10 +1115,7 @@ class _EditPatunganSheetState extends State<EditPatunganSheet> {
                 child: TextField(
                   controller: p.amountController,
                   enabled: false,
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
                   decoration: InputDecoration(
                     prefixText: "Rp ",
                     prefixStyle: TextStyle(

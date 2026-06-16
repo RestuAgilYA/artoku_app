@@ -1,6 +1,6 @@
 import 'package:artoku_app/features/transfer/presentation/detail_transfer_screen.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
-import 'package:artoku_app/features/transfer/presentation/transfer_fund_dialog.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -32,7 +32,10 @@ class TransferHistoryTab extends StatelessWidget {
           .collection('users')
           .doc(user.uid)
           .collection('transfers')
-          .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth))
+          .where(
+            'timestamp',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(startOfMonth),
+          )
           .where('timestamp', isLessThan: Timestamp.fromDate(startOfNextMonth))
           .orderBy('timestamp', descending: true)
           .snapshots(),
@@ -61,27 +64,36 @@ class TransferHistoryTab extends StatelessWidget {
           itemCount: transfers.length,
           itemBuilder: (context, index) {
             final transfer = transfers[index];
-            final formattedDate =
-                DateFormat('dd MMM yyyy, HH:mm').format(transfer.timestamp.toDate());
+            final formattedDate = DateFormat(
+              'dd MMM yyyy, HH:mm',
+            ).format(transfer.timestamp.toDate());
 
             return Dismissible(
               key: Key(transfer.id),
               confirmDismiss: (direction) async {
-                if (direction == DismissDirection.startToEnd) { // Geser ke kanan (Edit)
+                if (direction == DismissDirection.startToEnd) {
+                  // Geser ke kanan (Edit)
                   showDialog(
                     context: context,
-                    builder: (context) => TransferFundDialog(transfer: transfer),
+                    builder: (context) =>
+                        TransferFundDialog(transfer: transfer),
                   );
                   return false; // Jangan hapus item
-                } else { // Geser ke kiri (Hapus)
-                  final isDark = Theme.of(context).brightness == Brightness.dark;
-                  final Color messageColor = isDark ? Colors.white70 : Colors.black87;
+                } else {
+                  // Geser ke kiri (Hapus)
+                  final isDark =
+                      Theme.of(context).brightness == Brightness.dark;
+                  final Color messageColor = isDark
+                      ? Colors.white70
+                      : Colors.black87;
                   return await showDialog(
                     context: context,
                     barrierDismissible: false,
                     builder: (BuildContext context) {
                       return AlertDialog(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         content: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -111,7 +123,10 @@ class TransferHistoryTab extends StatelessWidget {
                             Text(
                               "Tindakan ini tidak dapat dibatalkan. Data transfer dan perubahan saldo akan dikembalikan.",
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 15, color: messageColor),
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: messageColor,
+                              ),
                             ),
                           ],
                         ),
@@ -162,7 +177,9 @@ class TransferHistoryTab extends StatelessWidget {
                       .collection('wallets')
                       .doc(transfer.destinationWalletId);
 
-                  await FirebaseFirestore.instance.runTransaction((transaction) async {
+                  await FirebaseFirestore.instance.runTransaction((
+                    transaction,
+                  ) async {
                     // Tambah saldo di dompet sumber
                     transaction.update(sourceWalletRef, {
                       'balance': FieldValue.increment(transfer.amount),
@@ -210,7 +227,8 @@ class TransferHistoryTab extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => DetailTransferScreen(transfer: transfer),
+                        builder: (context) =>
+                            DetailTransferScreen(transfer: transfer),
                       ),
                     );
                   },
@@ -218,7 +236,11 @@ class TransferHistoryTab extends StatelessWidget {
                     padding: const EdgeInsets.all(15.0),
                     child: Row(
                       children: [
-                        const Icon(Icons.swap_horiz, color: Color(0xFF0F4C5C), size: 40),
+                        const Icon(
+                          Icons.swap_horiz,
+                          color: Color(0xFF0F4C5C),
+                          size: 40,
+                        ),
                         const SizedBox(width: 15),
                         Expanded(
                           child: Column(
@@ -276,8 +298,9 @@ class DetailTransferDialog extends StatelessWidget {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
     final Color textColor = isDark ? Colors.white : Colors.black;
     final Color cardColor = Theme.of(context).cardColor;
-    final formattedDate =
-        DateFormat('dd MMM yyyy, HH:mm').format(transfer.timestamp.toDate());
+    final formattedDate = DateFormat(
+      'dd MMM yyyy, HH:mm',
+    ).format(transfer.timestamp.toDate());
 
     return AlertDialog(
       contentPadding: EdgeInsets.zero,
@@ -307,10 +330,9 @@ class DetailTransferDialog extends StatelessWidget {
                   children: [
                     Text(
                       "Detail Transfer",
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(color: Colors.white),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleLarge?.copyWith(color: Colors.white),
                     ),
                     IconButton(
                       icon: const Icon(Icons.close, color: Colors.white),
@@ -357,9 +379,17 @@ class DetailTransferDialog extends StatelessWidget {
                     ),
                     const SizedBox(height: 32),
                     // Detail rows
-                    _buildDetailRow("Dari", transfer.sourceWalletName, textColor),
+                    _buildDetailRow(
+                      "Dari",
+                      transfer.sourceWalletName,
+                      textColor,
+                    ),
                     const SizedBox(height: 16),
-                    _buildDetailRow("Ke", transfer.destinationWalletName, textColor),
+                    _buildDetailRow(
+                      "Ke",
+                      transfer.destinationWalletName,
+                      textColor,
+                    ),
                     const SizedBox(height: 16),
                     _buildDetailRow("Tanggal", formattedDate, textColor),
                     const SizedBox(height: 16),
@@ -384,10 +414,7 @@ class DetailTransferDialog extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 14,
-          ),
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
         ),
         Expanded(
           child: Text(
@@ -421,6 +448,8 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _notesController = TextEditingController();
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
 
   WalletModel? _sourceWallet;
   WalletModel? _destinationWallet;
@@ -473,7 +502,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
               // If source wallet is locked, use first available
               _sourceWallet = wallets.isNotEmpty ? wallets.first : null;
             }
-            
+
             try {
               _destinationWallet = wallets.firstWhere(
                 (w) => w.id == widget.transfer!.destinationWalletId,
@@ -482,9 +511,11 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
               // If destination wallet is locked, use last available
               _destinationWallet = wallets.length > 1 ? wallets.last : null;
             }
-            
-            _amountController.text = NumberFormat('#,###', 'id_ID')
-                .format((widget.transfer!.amount).toInt());
+
+            _amountController.text = NumberFormat(
+              '#,###',
+              'id_ID',
+            ).format((widget.transfer!.amount).toInt());
             _notesController.text = widget.transfer!.notes;
           }
           _isLoading = false;
@@ -500,8 +531,9 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
 
   Future<void> _saveTransfer() async {
     if (_formKey.currentState?.validate() ?? false) {
-      final double amount =
-          double.parse(_amountController.text.replaceAll(RegExp(r'[^0-9]'), ''));
+      final double amount = double.parse(
+        _amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
+      );
 
       if (amount <= 0) {
         UIHelper.showError(context, "Jumlah harus lebih dari 0");
@@ -514,7 +546,10 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
       }
 
       if (_sourceWallet!.id == _destinationWallet!.id) {
-        UIHelper.showError(context, "Dompet sumber dan tujuan tidak boleh sama");
+        UIHelper.showError(
+          context,
+          "Dompet sumber dan tujuan tidak boleh sama",
+        );
         return;
       }
 
@@ -568,7 +603,11 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
 
           if (mounted) {
             Navigator.pop(context);
-            UIHelper.showSuccess(context, "Berhasil", "Transfer berhasil diperbarui");
+            UIHelper.showSuccess(
+              context,
+              "Berhasil",
+              "Transfer berhasil diperbarui",
+            );
           }
         } else {
           // Mode create
@@ -669,7 +708,7 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         prefixText: "Rp ",
                       ),
                       keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsFormatter()],
+                      inputFormatters: [_currencyFormatter],
                       validator: (value) =>
                           value?.isEmpty ?? true ? "Masukkan jumlah" : null,
                     ),
@@ -718,10 +757,14 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
         labelText: label,
         border: const OutlineInputBorder(),
       ),
-      items: filteredItems.map<DropdownMenuItem<WalletModel>>((WalletModel wallet) {
+      items: filteredItems.map<DropdownMenuItem<WalletModel>>((
+        WalletModel wallet,
+      ) {
         return DropdownMenuItem<WalletModel>(
           value: wallet,
-          child: Text('${wallet.name} (Rp ${NumberFormat('#,###', 'id_ID').format(wallet.balance.toInt())})'),
+          child: Text(
+            '${wallet.name} (Rp ${NumberFormat('#,###', 'id_ID').format(wallet.balance.toInt())})',
+          ),
         );
       }).toList(),
       validator: (value) => value == null ? 'Pilih dompet' : null,
