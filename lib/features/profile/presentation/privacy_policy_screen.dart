@@ -54,19 +54,23 @@ class PrivacyPolicyScreen extends StatelessWidget {
             const SizedBox(height: 30),
             _buildSection(
               "1. Pengumpulan Data",
-              "Kami mengumpulkan data minimal berupa email (untuk login), foto profil opsional, dan catatan transaksi keuangan yang Anda masukkan. Data ini digunakan murni untuk fungsionalitas aplikasi.",
+              "Kami mengumpulkan data minimal berupa email, nama profil, foto opsional, dan seluruh catatan transaksi (termasuk dompet, tabungan, utang/piutang, patungan, dan cicilan). Data ini disinkronkan ke server cloud untuk fungsionalitas aplikasi di berbagai perangkat Anda.",
             ),
             _buildSection(
               "2. Izin Perangkat",
-              "• Kamera: Digunakan hanya saat Anda memindai struk belanja.\n• Mikrofon: Digunakan hanya saat Anda menggunakan fitur input suara.\n• Notifikasi: Untuk pengingat harian.",
+              "• Kamera: Pemindaian struk belanja AI.\n• Mikrofon: Pencatatan suara otomatis.\n• Notifikasi: Pengingat laporan harian.\n• Penyimpanan: Penyimpanan file ekspor laporan (PDF/CSV).\n• Biometrik: Kunci keamanan aplikasi lokal (App Lock).",
             ),
             _buildSection(
-              "3. Keamanan",
-              "Data Anda disimpan di server cloud terenkripsi (Firebase). Kami tidak membagikan atau menjual data pribadi Anda kepada pihak ketiga manapun.",
+              "3. Analisis UX & Perekaman Layar",
+              "Untuk meningkatkan pengalaman dan menemukan bug, kami menggunakan Microsoft Clarity. Layanan ini merekam interaksi layar (session replay) secara anonim. Informasi sangat sensitif seperti email, password, dan nilai saldo akan secara otomatis disensor (masking) dan tidak pernah terekam oleh server Clarity.",
             ),
             _buildSection(
-              "4. Kontak Kami",
-              "Jika memiliki pertanyaan mengenai privasi, silakan hubungi developer di: restuagil.ya@gmail.com",
+              "4. Keamanan & Penggunaan",
+              "Data utama Anda disimpan di infrastruktur Firebase Google yang terenkripsi. Kami tidak membagikan atau menjual data pribadi/finansial Anda kepada pihak ketiga mana pun. Kredensial App Lock (Biometrik/PIN) diproses sepenuhnya secara lokal dan tidak pernah diunggah.",
+            ),
+            _buildSection(
+              "5. Kontak Kami",
+              "Jika memiliki pertanyaan mengenai privasi dan keamanan data Anda, silakan hubungi developer di: restuagil.ya@gmail.com",
             ),
           ],
         ),

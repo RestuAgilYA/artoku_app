@@ -19,6 +19,7 @@ import 'package:artoku_app/features/profile/presentation/privacy_policy_screen.d
 import 'package:artoku_app/core/services/notification_service.dart';
 import 'package:artoku_app/features/app_lock/presentation/app_lock_setup_page.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/services/logger_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -189,7 +190,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showDisableAppLockVerification() {
     // Simpan context dari State, bukan dari builder
     final navigatorContext = context;
-    
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -261,7 +262,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onPressed: () {
                   // Tutup dialog menggunakan dialogContext
                   Navigator.of(dialogContext).pop();
-                  
+
                   // Gunakan WidgetsBinding untuk memastikan dialog tertutup
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     if (mounted) {
@@ -551,37 +552,72 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (value) {
       // --- Aktifkan notifikasi ---
       try {
-        await NotificationService().requestPermissions();
-      } catch (e) {
-        debugPrint('[Notifikasi] Gagal request permissions: $e');
-      }
+        final permission = await NotificationService().requestPermissions();
 
-      try {
-        await NotificationService().scheduleAllReminders();
-      } catch (e) {
-        debugPrint('[Notifikasi] Gagal schedule reminders: $e');
-      }
+        if (!permission.notificationGranted) {
+          await prefs.setBool('daily_reminder', false);
+          if (mounted) {
+            setState(() => _isNotificationOn = false);
+            await UIHelper.showError(
+              context,
+              'Izin notifikasi belum diberikan. Aktifkan izin notifikasi di pengaturan aplikasi.',
+            );
+          }
+          return;
+        }
 
-      if (mounted) {
-        await UIHelper.showSuccess(
-          context,
-          "Pengingat Aktif!",
-          "Siap Bos! Kami akan ingatkan kamu jam 12:00 (Siang) & 20:00 (Malam).",
-        );
+        final scheduled = await NotificationService().scheduleAllReminders();
+        await NotificationService().debugPendingNotifications();
+
+        if (!scheduled) {
+          await prefs.setBool('daily_reminder', false);
+          if (mounted) {
+            setState(() => _isNotificationOn = false);
+            await UIHelper.showError(
+              context,
+              'Gagal menjadwalkan pengingat. Coba aktifkan kembali setelah memastikan izin alarm/notifikasi diizinkan.',
+            );
+          }
+          return;
+        }
+
+        if (!permission.exactAlarmGranted) {
+          LoggerService.warning(
+            'Exact alarm tidak aktif. Pengingat berjalan dengan mode inexact.',
+          );
+        }
+
+        if (mounted) {
+          await UIHelper.showSuccess(
+            context,
+            'Pengingat Aktif!',
+            'Siap Bos! Kami akan ingatkan kamu jam 12:15 (Siang) & 20:00 (Malam).',
+          );
+        }
+      } catch (e, stackTrace) {
+        LoggerService.error('Gagal mengaktifkan notifikasi', e, stackTrace);
+        await prefs.setBool('daily_reminder', false);
+        if (mounted) {
+          setState(() => _isNotificationOn = false);
+          await UIHelper.showError(
+            context,
+            'Terjadi kesalahan saat mengaktifkan notifikasi. Silakan coba lagi.\n\nDetail: $e',
+          );
+        }
       }
     } else {
       // --- Nonaktifkan notifikasi ---
       try {
         await NotificationService().cancelAllNotifications();
-      } catch (e) {
-        debugPrint('[Notifikasi] Gagal cancel notifications: $e');
+      } catch (e, stackTrace) {
+        LoggerService.error('Gagal cancel notifications', e, stackTrace);
       }
 
       if (mounted) {
         await UIHelper.showSuccess(
           context,
-          "Pengingat Mati",
-          "Jangan lupa catat sendiri ya. Hati-hati lupa! 🥺",
+          'Pengingat Mati',
+          'Jangan lupa catat sendiri ya. Hati-hati lupa! 🥺',
         );
       }
     }
@@ -1218,7 +1254,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             },
             child: const Text(
               "Hapus Akun",
-              style: TextStyle(color: Color.fromRGBO(255, 82, 82, 1), fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Color.fromRGBO(255, 82, 82, 1),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -2429,7 +2468,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.grey),
             filled: isReadOnly,
             fillColor: isReadOnly
-            // ignore: deprecated_member_use
+                // ignore: deprecated_member_use
                 ? (isDark ? Colors.white.withOpacity(0.1) : Colors.grey[200])
                 : null,
             contentPadding: const EdgeInsets.symmetric(
@@ -2789,7 +2828,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
       setState(() {
         _pinInput += digit;
       });
-      
+
       // Auto-check ketika PIN sudah 6 digit
       if (_pinInput.length == _pinLength) {
         _verifyPin();
@@ -2807,23 +2846,23 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
 
   Future<void> _verifyPin() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedPinHash = prefs.getString('appLockPin') ?? '';
-      
+
       // Hash input PIN
       final inputHash = sha256.convert(utf8.encode(_pinInput)).toString();
-      
+
       if (inputHash == savedPinHash) {
         // PIN BENAR - Tampilkan success message
         if (mounted) {
           // Tutup loading
           setState(() => _isLoading = false);
-          
+
           // Tutup screen PIN verification terlebih dahulu
           Navigator.pop(context);
-          
+
           // Panggil callback untuk disable app lock (ini akan show success message)
           widget.onSuccess();
         }
@@ -2834,10 +2873,10 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
             _isLoading = false;
             _pinInput = ""; // Reset PIN input
           });
-          
+
           // Tampilkan error message dengan theme-aware colors
           final isDark = Theme.of(context).brightness == Brightness.dark;
-          
+
           await showDialog(
             context: context,
             barrierDismissible: false,
@@ -2909,7 +2948,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
         UIHelper.showError(context, "Terjadi kesalahan: $e");
       }
     }
-    
+
     if (mounted) setState(() => _isLoading = false);
   }
 
@@ -2939,7 +2978,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                   ],
                 ),
               ),
-              
+
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -2960,7 +2999,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                       ),
                     ),
                     const SizedBox(height: 30),
-                    
+
                     // Title
                     const Text(
                       "Verifikasi PIN",
@@ -2976,14 +3015,11 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                       child: Text(
                         "Masukkan 6 digit PIN untuk menonaktifkan kunci aplikasi",
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                        ),
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
                       ),
                     ),
                     const SizedBox(height: 40),
-                    
+
                     // PIN Display
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -3019,7 +3055,7 @@ class _PinVerificationScreenState extends State<_PinVerificationScreen> {
                       ),
                     ),
                     const SizedBox(height: 60),
-                    
+
                     // Numpad
                     _buildNumpad(),
                     const SizedBox(height: 20),

@@ -63,7 +63,7 @@ class AboutScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              "ArtoKu App v1.2.2",
+              "ArtoKu App v1.3.0",
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -157,8 +157,10 @@ class AboutScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // SOCIAL LINKS
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 20,
+              runSpacing: 20,
               children: [
                 _buildSocialImage(
                   context,
@@ -167,7 +169,6 @@ class AboutScreen extends StatelessWidget {
                   "https://github.com/RestuAgilYA",
                   isDark,
                 ),
-                const SizedBox(width: 20),
                 _buildSocialImage(
                   context,
                   "assets/images/linkedin.png",
@@ -175,7 +176,6 @@ class AboutScreen extends StatelessWidget {
                   "https://www.linkedin.com/in/restuagilya/",
                   isDark,
                 ),
-                const SizedBox(width: 20),
                 _buildSocialImage(
                   context,
                   "assets/images/instagram.png",
@@ -183,12 +183,18 @@ class AboutScreen extends StatelessWidget {
                   "https://www.instagram.com/_restuagil/",
                   isDark,
                 ),
-                const SizedBox(width: 20),
                 _buildSocialImage(
                   context,
                   "assets/images/gmail_logo.png",
                   "Email",
                   "mailto:restuagil.ya@gmail.com",
+                  isDark,
+                ),
+                _buildSocialIcon(
+                  context,
+                  Icons.language,
+                  "My Portfolio",
+                  "https://www.restuagilya.my.id/",
                   isDark,
                 ),
               ],
@@ -199,7 +205,7 @@ class AboutScreen extends StatelessWidget {
             // ARTOBOT LANDING PAGE
             const SizedBox(height: 10),
             GestureDetector(
-              onTap: () => _launchURL(context, "https://arto-ku-landingpage.vercel.app/"),
+              onTap: () => _launchURL(context, "https://www.artoku-mobile.web.id/"),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 decoration: BoxDecoration(
@@ -273,6 +279,56 @@ class AboutScreen extends StatelessWidget {
               height: 30,
               errorBuilder: (context, error, stackTrace) =>
                   const Icon(Icons.link, size: 30),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : Colors.grey.shade700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSocialIcon(
+    BuildContext context,
+    IconData iconData,
+    String label,
+    String url,
+    bool isDark,
+  ) {
+    return GestureDetector(
+      onTap: () => _launchURL(context, url),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              // ignore: deprecated_member_use
+              color: isDark ? Colors.white.withOpacity(0.1) : Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  // ignore: deprecated_member_use
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 5,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: Icon(
+                iconData,
+                size: 26,
+                color: isDark ? Colors.white70 : Colors.grey.shade800,
+              ),
             ),
           ),
           const SizedBox(height: 8),

@@ -12,12 +12,14 @@ class PdfHelper {
     List<QueryDocumentSnapshot> transactionDocs,
     List<QueryDocumentSnapshot> transferDocs, {
     List<QueryDocumentSnapshot>? debtDocs,
+    List<QueryDocumentSnapshot>? goalDocs,
+    List<QueryDocumentSnapshot>? patunganDocs,
   }) async {
     final range = DateTimeRange(
       start: DateTime(selectedMonth.year, selectedMonth.month, 1),
       end: DateTime(selectedMonth.year, selectedMonth.month + 1, 0, 23, 59, 59),
     );
-    return generateReport(range, transactionDocs, transferDocs, debtDocs: debtDocs);
+    return generateReport(range, transactionDocs, transferDocs, debtDocs: debtDocs, goalDocs: goalDocs, patunganDocs: patunganDocs);
   }
 
   // Fungsi utama untuk generate dan print PDF with date range
@@ -26,6 +28,8 @@ class PdfHelper {
     List<QueryDocumentSnapshot> transactionDocs,
     List<QueryDocumentSnapshot> transferDocs, {
     List<QueryDocumentSnapshot>? debtDocs,
+    List<QueryDocumentSnapshot>? goalDocs,
+    List<QueryDocumentSnapshot>? patunganDocs,
   }) async {
     final pdf = pw.Document();
 
@@ -93,13 +97,58 @@ class PdfHelper {
     // 2b. Filter & Urutkan Piutang/Utang
     final debts = (debtDocs ?? []).where((doc) {
       final data = doc.data() as Map<String, dynamic>;
-      if (data['createdAt'] == null) return false;
+      final isPaid = data['isPaid'] == true;
+      if (data['createdAt'] == null) return !isPaid;
       final date = (data['createdAt'] as Timestamp).toDate();
-      return !date.isBefore(dateRange.start) && 
+      
+      final isInRange = !date.isBefore(dateRange.start) && 
              !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+             
+      return isInRange || !isPaid;
     }).toList();
 
     debts.sort((a, b) {
+      final dateA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      final dateB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      return dateB.compareTo(dateA);
+    });
+
+    // 2c. Filter & Urutkan Goals
+    final goals = (goalDocs ?? []).where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] as String? ?? 'active';
+      final isActive = status == 'active';
+      
+      if (data['createdAt'] == null) return isActive;
+      final date = (data['createdAt'] as Timestamp).toDate();
+      
+      final isInRange = !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+             
+      return isInRange || isActive;
+    }).toList();
+
+    goals.sort((a, b) {
+      final dateA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      final dateB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
+      return dateB.compareTo(dateA);
+    });
+
+    // 2d. Filter & Urutkan Patungan
+    final patungans = (patunganDocs ?? []).where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final isCompleted = data['isCompleted'] == true;
+      
+      if (data['createdAt'] == null) return !isCompleted;
+      final date = (data['createdAt'] as Timestamp).toDate();
+      
+      final isInRange = !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+             
+      return isInRange || !isCompleted;
+    }).toList();
+
+    patungans.sort((a, b) {
       final dateA = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
       final dateB = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp;
       return dateB.compareTo(dateA);
@@ -325,6 +374,94 @@ class PdfHelper {
                   0: pw.Alignment.center,
                   3: pw.Alignment.centerRight,
                   4: pw.Alignment.center,
+                },
+              ),
+              pw.SizedBox(height: 30),
+            ],
+            
+            // TABEL TARGET TABUNGAN
+            if (goals.isNotEmpty) ...[    
+              pw.Text(
+                "Target Tabungan",
+                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 5),
+              pw.Text(
+                "Catatan: Alokasi ke tabungan tidak dihitung sebagai pengeluaran utama.",
+                style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700, fontStyle: pw.FontStyle.italic),
+              ),
+              pw.SizedBox(height: 10),
+              // ignore: deprecated_member_use
+              pw.Table.fromTextArray(
+                headers: ['Tanggal', 'Nama Target', 'Target', 'Terkumpul', 'Status'],
+                data: goals.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final date = (data['createdAt'] as Timestamp).toDate();
+                  final targetAmount = (data['targetAmount'] ?? 0).toDouble();
+                  final currentAmount = (data['currentAmount'] ?? 0).toDouble();
+                  final status = data['status'] == 'completed' ? 'Tercapai' : 'Proses';
+                  return [
+                    "${date.day}/${date.month}/${date.year}",
+                    data['name'] ?? '-',
+                    _formatCurrency(targetAmount),
+                    _formatCurrency(currentAmount),
+                    status,
+                  ];
+                }).toList(),
+                border: null,
+                headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                headerDecoration:
+                    const pw.BoxDecoration(color: PdfColor.fromInt(0xFF1565C0)), // Biru
+                rowDecoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                        bottom: pw.BorderSide(color: PdfColors.grey300))),
+                cellAlignment: pw.Alignment.centerLeft,
+                cellAlignments: {
+                  0: pw.Alignment.center,
+                  2: pw.Alignment.centerRight,
+                  3: pw.Alignment.centerRight,
+                  4: pw.Alignment.center,
+                },
+              ),
+              pw.SizedBox(height: 30),
+            ],
+            
+            // TABEL DAFTAR PATUNGAN
+            if (patungans.isNotEmpty) ...[    
+              pw.Text(
+                "Daftar Patungan",
+                style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+              ),
+              pw.SizedBox(height: 10),
+              // ignore: deprecated_member_use
+              pw.Table.fromTextArray(
+                headers: ['Tanggal', 'Judul Patungan', 'Total Tagihan', 'Status'],
+                data: patungans.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final date = (data['createdAt'] as Timestamp).toDate();
+                  final totalAmount = (data['totalAmount'] ?? 0).toDouble();
+                  final status = data['isCompleted'] == true ? 'Selesai' : 'Aktif';
+                  return [
+                    "${date.day}/${date.month}/${date.year}",
+                    data['title'] ?? '-',
+                    _formatCurrency(totalAmount),
+                    status,
+                  ];
+                }).toList(),
+                border: null,
+                headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold, color: PdfColors.white),
+                headerDecoration:
+                    const pw.BoxDecoration(color: PdfColor.fromInt(0xFFEF6C00)), // Orange
+                rowDecoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                        bottom: pw.BorderSide(color: PdfColors.grey300))),
+                cellAlignment: pw.Alignment.centerLeft,
+                cellAlignments: {
+                  0: pw.Alignment.center,
+                  2: pw.Alignment.centerRight,
+                  3: pw.Alignment.center,
                 },
               ),
               pw.SizedBox(height: 30),

@@ -14,8 +14,38 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   DateTime _selectedMonth = DateTime.now();
 
-  // 0 = Pengeluaran, 1 = Pemasukan, 2 = Banding (Arus Kas), 3 = Piutang/Utang
   int _viewMode = 0;
+  late PageController _pageController;
+  late Stream<QuerySnapshot> _expenseStream;
+  late Stream<QuerySnapshot> _incomeStream;
+  late Stream<QuerySnapshot> _allStream;
+  late Stream<QuerySnapshot> _debtStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _viewMode);
+    if (user != null) {
+      final txCollection = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transactions');
+      
+      _expenseStream = txCollection.where('type', isEqualTo: 'expense').snapshots();
+      _incomeStream = txCollection.where('type', isEqualTo: 'income').snapshots();
+      _allStream = txCollection.snapshots();
+      _debtStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('debts')
+          .snapshots();
+    } else {
+      _expenseStream = const Stream.empty();
+      _incomeStream = const Stream.empty();
+      _allStream = const Stream.empty();
+      _debtStream = const Stream.empty();
+    }
+  }
 
   // Warna Kategori Pengeluaran
   final Map<String, Color> _expenseColors = {
@@ -128,13 +158,44 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
               borderRadius: BorderRadius.circular(30),
             ),
-            child: Row(
-              children: [
-                _buildToggleButton("Keluar", 0, const Color(0xFF0F4C5C)),
-                _buildToggleButton("Masuk", 1, const Color(0xFF00897B)),
-                _buildToggleButton("Banding", 2, Colors.blueAccent),
-                _buildToggleButton("Piutang", 3, const Color(0xFFFF8F00)),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final double tabWidth = constraints.maxWidth / 4;
+                Color activeColor;
+                switch (_viewMode) {
+                  case 0: activeColor = const Color(0xFF0F4C5C); break;
+                  case 1: activeColor = const Color(0xFF00897B); break;
+                  case 2: activeColor = Colors.blueAccent; break;
+                  case 3: activeColor = const Color(0xFFFF8F00); break;
+                  default: activeColor = const Color(0xFF0F4C5C);
+                }
+                return Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      left: _viewMode * tabWidth,
+                      top: 0,
+                      bottom: 0,
+                      width: tabWidth,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: activeColor,
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        _buildToggleButton("Keluar", 0),
+                        _buildToggleButton("Masuk", 1),
+                        _buildToggleButton("Banding", 2),
+                        _buildToggleButton("Piutang", 3),
+                      ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -142,207 +203,17 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
           // 3. KONTEN CHART
           Expanded(
-            child: _viewMode == 3
-                ? _buildDebtAnalysis(textColor)
-                : StreamBuilder<QuerySnapshot>(
-              stream: _viewMode == 2
-                  ? FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user?.uid)
-                        .collection('transactions')
-                        .snapshots()
-                  : FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(user?.uid)
-                        .collection('transactions')
-                        .where(
-                          'type',
-                          isEqualTo: _viewMode == 0 ? 'expense' : 'income',
-                        )
-                        .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return _buildEmptyState("Belum ada data transaksi.");
-                }
-
-                // --- GROUPING DATA ---
-                Map<String, double> dataMap = {};
-                double grandTotal = 0;
-
-                double totalIncome = 0;
-                double totalExpense = 0;
-                bool hasDataThisMonth = false;
-
-                for (var doc in snapshot.data!.docs) {
-                  var data = doc.data() as Map<String, dynamic>;
-                  Timestamp? t = data['date'];
-                  if (t == null) continue;
-                  DateTime date = t.toDate();
-
-                  if (date.year != _selectedMonth.year ||
-                      date.month != _selectedMonth.month) {
-                    continue;
-                  }
-
-                  hasDataThisMonth = true;
-                  double amount = (data['amount'] ?? 0).toDouble();
-                  String type = data['type'] ?? 'expense';
-
-                  if (_viewMode == 2) {
-                    if (type == 'income') {
-                      totalIncome += amount;
-                    } else {
-                      totalExpense += amount;
-                    }
-                  } else {
-                    String category = data['category'] ?? 'Lainnya';
-                    if (dataMap.containsKey(category)) {
-                      dataMap[category] = dataMap[category]! + amount;
-                    } else {
-                      dataMap[category] = amount;
-                    }
-                    grandTotal += amount;
-                  }
-                }
-
-                if (!hasDataThisMonth) {
-                  return _buildEmptyState("Tidak ada data di bulan ini.");
-                }
-
-                if (_viewMode == 2) {
-                  dataMap = {
-                    'Pemasukan': totalIncome,
-                    'Pengeluaran': totalExpense,
-                  };
-                  grandTotal = totalIncome + totalExpense;
-                  if (grandTotal == 0) {
-                    return _buildEmptyState("Nol transaksi bulan ini.");
-                  }
-                }
-
-                var sortedEntries = dataMap.entries.toList()
-                  ..sort((a, b) => b.value.compareTo(a.value));
-
-                return Column(
-                  children: [
-                    // A. PIE CHART (Widget Terpisah Anti-Kedip)
-                    _PieChartWidget(
-                      sortedEntries: sortedEntries,
-                      grandTotal: grandTotal,
-                      viewMode: _viewMode,
-                      expenseColors: _expenseColors,
-                      incomeColors: _incomeColors,
-                      textColor: textColor,
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    // B. LIST DETAIL
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        itemCount: sortedEntries.length,
-                        itemBuilder: (context, index) {
-                          String key = sortedEntries[index].key;
-                          double amount = sortedEntries[index].value;
-                          double percentage = (amount / grandTotal) * 100;
-
-                          Color color;
-                          if (_viewMode == 2) {
-                            color = key == 'Pemasukan'
-                                ? const Color(0xFF00897B)
-                                : const Color(0xFF0F4C5C);
-                          } else {
-                            var colorMap = _viewMode == 0
-                                ? _expenseColors
-                                : _incomeColors;
-                            color = colorMap[key] ?? Colors.grey;
-                          }
-
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 15),
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).cardColor,
-                              borderRadius: BorderRadius.circular(15),
-                              boxShadow: [
-                                BoxShadow(
-                                  // ignore: deprecated_member_use
-                                  color: Colors.black.withOpacity(0.03),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 12,
-                                  height: 12,
-                                  decoration: BoxDecoration(
-                                    color: color,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 15),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        key,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                          color: textColor,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      LinearProgressIndicator(
-                                        value: percentage / 100,
-                                        backgroundColor: Colors.grey.shade200,
-                                        color: color,
-                                        minHeight: 4,
-                                        borderRadius: BorderRadius.circular(2),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 15),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      _formatRupiah(amount),
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                        color: textColor,
-                                      ),
-                                    ),
-                                    Text(
-                                      "${percentage.toStringAsFixed(1)}%",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _viewMode = index);
               },
+              children: [
+                KeepAliveWrapper(child: _buildTransactionAnalysis(_expenseStream, textColor, 0)),
+                KeepAliveWrapper(child: _buildTransactionAnalysis(_incomeStream, textColor, 1)),
+                KeepAliveWrapper(child: _buildTransactionAnalysis(_allStream, textColor, 2)),
+                KeepAliveWrapper(child: _buildDebtAnalysis(textColor)),
+              ],
             ),
           ),
         ],
@@ -353,11 +224,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   // ==================== PIUTANG/UTANG ANALYSIS ====================
   Widget _buildDebtAnalysis(Color textColor) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user?.uid)
-          .collection('debts')
-          .snapshots(),
+      stream: _debtStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -643,28 +510,229 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
   // _buildDebtDetailRow remains inside _AnalysisScreenState
 
-  Widget _buildToggleButton(String text, int modeIndex, Color activeColor) {
+  Widget _buildToggleButton(String text, int modeIndex) {
     bool isActive = _viewMode == modeIndex;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _viewMode = modeIndex),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          _pageController.animateToPage(
+            modeIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        },
+        child: Container(
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isActive ? activeColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Text(
-            text,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
             style: TextStyle(
               color: isActive ? Colors.white : Colors.grey,
               fontWeight: FontWeight.bold,
               fontSize: 12,
+              fontFamily: 'Inter',
             ),
+            child: Text(text),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTransactionAnalysis(Stream<QuerySnapshot> stream, Color textColor, int typeIndex) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("Belum ada data transaksi.");
+        }
+
+        // --- GROUPING DATA ---
+        Map<String, double> dataMap = {};
+        double grandTotal = 0;
+
+        double totalIncome = 0;
+        double totalExpense = 0;
+        bool hasDataThisMonth = false;
+
+        for (var doc in snapshot.data!.docs) {
+          var data = doc.data() as Map<String, dynamic>;
+          Timestamp? t = data['date'];
+          if (t == null) continue;
+          DateTime date = t.toDate();
+
+          if (date.year != _selectedMonth.year ||
+              date.month != _selectedMonth.month) {
+            continue;
+          }
+
+          hasDataThisMonth = true;
+          double amount = (data['amount'] ?? 0).toDouble();
+          String type = data['type'] ?? 'expense';
+
+          if (typeIndex == 2) {
+            if (type == 'income') {
+              totalIncome += amount;
+            } else {
+              totalExpense += amount;
+            }
+          } else {
+            String category = data['category'] ?? 'Lainnya';
+            if (dataMap.containsKey(category)) {
+              dataMap[category] = dataMap[category]! + amount;
+            } else {
+              dataMap[category] = amount;
+            }
+            grandTotal += amount;
+          }
+        }
+
+        if (!hasDataThisMonth) {
+          return _buildEmptyState("Tidak ada data di bulan ini.");
+        }
+
+        if (typeIndex == 2) {
+          dataMap = {
+            'Pemasukan': totalIncome,
+            'Pengeluaran': totalExpense,
+          };
+          grandTotal = totalIncome + totalExpense;
+          if (grandTotal == 0) {
+            return _buildEmptyState("Nol transaksi bulan ini.");
+          }
+        }
+
+        var sortedEntries = dataMap.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+        return Column(
+          children: [
+            // A. PIE CHART (Widget Terpisah Anti-Kedip)
+            _PieChartWidget(
+              sortedEntries: sortedEntries,
+              grandTotal: grandTotal,
+              viewMode: typeIndex,
+              expenseColors: _expenseColors,
+              incomeColors: _incomeColors,
+              textColor: textColor,
+            ),
+
+            const SizedBox(height: 20),
+
+            // B. LIST DETAIL
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                itemCount: sortedEntries.length,
+                itemBuilder: (context, index) {
+                  String key = sortedEntries[index].key;
+                  double amount = sortedEntries[index].value;
+                  double percentage = (amount / grandTotal) * 100;
+
+                  Color color;
+                  if (typeIndex == 2) {
+                    color = key == 'Pemasukan'
+                        ? const Color(0xFF00897B)
+                        : const Color(0xFF0F4C5C);
+                  } else {
+                    var colorMap = typeIndex == 0
+                        ? _expenseColors
+                        : _incomeColors;
+                    color = colorMap[key] ?? Colors.grey;
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 15),
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          // ignore: deprecated_member_use
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 45,
+                          height: 45,
+                          decoration: BoxDecoration(
+                            // ignore: deprecated_member_use
+                            color: color.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.category,
+                            color: color,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                key,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                  color: textColor,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              LinearProgressIndicator(
+                                value: percentage / 100,
+                                backgroundColor: Colors.grey.shade200,
+                                color: color,
+                                minHeight: 4,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _formatRupiah(amount),
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                color: textColor,
+                              ),
+                            ),
+                            Text(
+                              "${percentage.toStringAsFixed(1)}%",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -717,7 +785,26 @@ class _DebtPieChartState extends State<_DebtPieChart> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          PieChart(
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 1500),
+            curve: Curves.easeOutQuart,
+            builder: (context, value, child) {
+              return ShaderMask(
+                shaderCallback: (rect) {
+                  return SweepGradient(
+                    startAngle: 0.0,
+                    endAngle: 2 * 3.141592653589793,
+                    stops: [value, value],
+                    colors: const [Colors.black, Colors.transparent],
+                    transform: const GradientRotation(-3.141592653589793 / 2),
+                  ).createShader(rect);
+                },
+                blendMode: BlendMode.dstIn,
+                child: child,
+              );
+            },
+            child: PieChart(
             PieChartData(
               pieTouchData: PieTouchData(
                 touchCallback: (FlTouchEvent event, pieTouchResponse) {
@@ -761,6 +848,7 @@ class _DebtPieChartState extends State<_DebtPieChart> {
                 );
               }),
             ),
+          ),
           ),
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -829,7 +917,26 @@ class _PieChartWidgetState extends State<_PieChartWidget> {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          PieChart(
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.0, end: 1.0),
+            duration: const Duration(milliseconds: 1500),
+            curve: Curves.easeOutQuart,
+            builder: (context, value, child) {
+              return ShaderMask(
+                shaderCallback: (rect) {
+                  return SweepGradient(
+                    startAngle: 0.0,
+                    endAngle: 2 * 3.141592653589793,
+                    stops: [value, value],
+                    colors: const [Colors.black, Colors.transparent],
+                    transform: const GradientRotation(-3.141592653589793 / 2),
+                  ).createShader(rect);
+                },
+                blendMode: BlendMode.dstIn,
+                child: child,
+              );
+            },
+            child: PieChart(
             PieChartData(
               pieTouchData: PieTouchData(
                 touchCallback: (FlTouchEvent event, pieTouchResponse) {
@@ -889,6 +996,7 @@ class _PieChartWidgetState extends State<_PieChartWidget> {
               }),
             ),
           ),
+          ),
           Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -934,3 +1042,24 @@ class _PieChartWidgetState extends State<_PieChartWidget> {
     );
   }
 }
+
+class KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+  const KeepAliveWrapper({super.key, required this.child});
+
+  @override
+  State<KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
+  }
+}
+

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:artoku_app/features/goal/data/goal_model.dart';
 import 'package:artoku_app/features/goal/data/goal_service.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 import 'package:artoku_app/features/goal/presentation/create_goal_sheet.dart';
 
 class DetailGoalScreen extends StatelessWidget {
@@ -20,24 +20,54 @@ class DetailGoalScreen extends StatelessWidget {
 
   String _formatDate(DateTime date) {
     List<String> months = [
-      "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-      "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
     ];
     return "${date.day} ${months[date.month - 1]} ${date.year}";
   }
 
   String _formatDateTime(DateTime date) {
     List<String> months = [
-      "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-      "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
     ];
     return "${date.day} ${months[date.month - 1]} ${date.year}, ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
   }
 
   String _formatMonthYear(DateTime date) {
     List<String> months = [
-      "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-      "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "Mei",
+      "Jun",
+      "Jul",
+      "Agu",
+      "Sep",
+      "Okt",
+      "Nov",
+      "Des",
     ];
     return "${months[date.month - 1]} ${date.year}";
   }
@@ -195,15 +225,18 @@ class DetailGoalScreen extends StatelessWidget {
           actions: [
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.white),
-              onSelected: (value) =>
-                  _handleMenuAction(context, value, goal),
+              onSelected: (value) => _handleMenuAction(context, value, goal),
               itemBuilder: (context) => [
                 if (goal.status != GoalStatus.cancelled)
                   PopupMenuItem(
                     value: 'edit',
                     child: Row(
                       children: [
-                        Icon(Icons.edit, size: 18, color: Theme.of(context).textTheme.bodyLarge?.color),
+                        Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                        ),
                         const SizedBox(width: 10),
                         const Text("Edit"),
                       ],
@@ -284,7 +317,10 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   Widget _buildProgressCard(
-      BuildContext context, GoalModel goal, Color statusClr) {
+    BuildContext context,
+    GoalModel goal,
+    Color statusClr,
+  ) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -306,39 +342,46 @@ class DetailGoalScreen extends StatelessWidget {
           SizedBox(
             width: 140,
             height: 140,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                CircularProgressIndicator(
-                  value: goal.progress,
-                  strokeWidth: 10,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: AlwaysStoppedAnimation<Color>(statusClr),
-                  strokeCap: StrokeCap.round,
-                ),
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        "${goal.progressPercent.toStringAsFixed(1)}%",
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: statusClr,
-                        ),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: goal.progress),
+              duration: const Duration(milliseconds: 1000),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) {
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CircularProgressIndicator(
+                      value: value,
+                      strokeWidth: 10,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation<Color>(statusClr),
+                      strokeCap: StrokeCap.round,
+                    ),
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            "${(value * 100).toStringAsFixed(1)}%",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: statusClr,
+                            ),
+                          ),
+                          Text(
+                            "tercapai",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                        ],
                       ),
-                      Text(
-                        "tercapai",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
           ),
           const SizedBox(height: 20),
@@ -352,10 +395,7 @@ class DetailGoalScreen extends StatelessWidget {
                 children: [
                   Text(
                     "Terkumpul",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -373,10 +413,7 @@ class DetailGoalScreen extends StatelessWidget {
                 children: [
                   Text(
                     "Target",
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -396,11 +433,18 @@ class DetailGoalScreen extends StatelessWidget {
           // Progress bar
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: goal.progress,
-              minHeight: 10,
-              backgroundColor: Colors.grey.shade200,
-              valueColor: AlwaysStoppedAnimation<Color>(statusClr),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: goal.progress),
+              duration: const Duration(milliseconds: 1000),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) {
+                return LinearProgressIndicator(
+                  value: value,
+                  minHeight: 10,
+                  backgroundColor: Colors.grey.shade200,
+                  valueColor: AlwaysStoppedAnimation<Color>(statusClr),
+                );
+              },
             ),
           ),
           const SizedBox(height: 8),
@@ -474,7 +518,11 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   Widget _buildInfoRow(
-      BuildContext context, IconData icon, String label, String value) {
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -500,7 +548,10 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   Widget _buildDeadlineIntelligence(
-      BuildContext context, GoalModel goal, bool isDark) {
+    BuildContext context,
+    GoalModel goal,
+    bool isDark,
+  ) {
     final sisaBulan = goal.sisaWaktuBulan;
     final perBulan = goal.kebutuhanPerBulan;
 
@@ -552,8 +603,11 @@ class DetailGoalScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber_rounded,
-                      color: Colors.red, size: 20),
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Colors.red,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -587,9 +641,7 @@ class DetailGoalScreen extends StatelessWidget {
               sisaBulan != null && sisaBulan > 0
                   ? "${sisaBulan.toStringAsFixed(1)} bulan"
                   : "Sudah lewat",
-              sisaBulan != null && sisaBulan > 0
-                  ? _primaryColor
-                  : Colors.red,
+              sisaBulan != null && sisaBulan > 0 ? _primaryColor : Colors.red,
             ),
           ],
 
@@ -615,7 +667,11 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   Widget _buildAnalysisRow(
-      BuildContext context, String label, String value, Color valueColor) {
+    BuildContext context,
+    String label,
+    String value,
+    Color valueColor,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -679,7 +735,10 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   Widget _buildAllocationHistory(
-      BuildContext context, GoalModel goal, bool isDark) {
+    BuildContext context,
+    GoalModel goal,
+    bool isDark,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -725,10 +784,11 @@ class DetailGoalScreen extends StatelessWidget {
               );
             }
 
-            final allocations = snapshot.data!.docs
-                .map((doc) => GoalAllocation.fromSnapshot(doc))
-                .toList()
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            final allocations =
+                snapshot.data!.docs
+                    .map((doc) => GoalAllocation.fromSnapshot(doc))
+                    .toList()
+                  ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
             final Map<DateTime, List<GoalAllocation>> groupedAllocations = {};
             for (final alloc in allocations) {
@@ -755,18 +815,19 @@ class DetailGoalScreen extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: monthKeys.length,
-                separatorBuilder: (_, __) => Divider(
-                  height: 1,
-                  color: Colors.grey.shade200,
-                ),
+                separatorBuilder: (_, __) =>
+                    Divider(height: 1, color: Colors.grey.shade200),
                 itemBuilder: (context, index) {
                   final monthKey = monthKeys[index];
                   final monthAllocations = groupedAllocations[monthKey] ?? [];
-                  monthAllocations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+                  monthAllocations.sort(
+                    (a, b) => b.createdAt.compareTo(a.createdAt),
+                  );
 
                   return Theme(
-                    data: Theme.of(context)
-                        .copyWith(dividerColor: Colors.transparent),
+                    data: Theme.of(
+                      context,
+                    ).copyWith(dividerColor: Colors.transparent),
                     child: ExpansionTile(
                       tilePadding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -796,10 +857,7 @@ class DetailGoalScreen extends StatelessWidget {
                             monthAllocations[i],
                           ),
                           if (i != monthAllocations.length - 1)
-                            Divider(
-                              height: 1,
-                              color: Colors.grey.shade200,
-                            ),
+                            Divider(height: 1, color: Colors.grey.shade200),
                         ],
                       ],
                     ),
@@ -814,7 +872,10 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   Widget _buildAllocationItem(
-      BuildContext context, GoalModel goal, GoalAllocation alloc) {
+    BuildContext context,
+    GoalModel goal,
+    GoalAllocation alloc,
+  ) {
     final isDeposit = alloc.type == AllocationType.deposit;
     return Dismissible(
       key: ValueKey(alloc.id),
@@ -862,8 +923,11 @@ class DetailGoalScreen extends StatelessWidget {
           return false;
         }
 
-        final bool shouldDelete =
-            await _showDeleteAllocationConfirmation(context, goal, alloc);
+        final bool shouldDelete = await _showDeleteAllocationConfirmation(
+          context,
+          goal,
+          alloc,
+        );
         return shouldDelete;
       },
       onDismissed: (_) async {
@@ -889,10 +953,7 @@ class DetailGoalScreen extends StatelessWidget {
         }
       },
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 4,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           radius: 18,
           backgroundColor: isDeposit
@@ -916,17 +977,11 @@ class DetailGoalScreen extends StatelessWidget {
         ),
         subtitle: Text(
           alloc.note?.isNotEmpty == true ? alloc.note! : alloc.type.label,
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey.shade500,
-          ),
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
         ),
         trailing: Text(
           _formatDateTime(alloc.createdAt),
-          style: TextStyle(
-            fontSize: 10,
-            color: Colors.grey.shade500,
-          ),
+          style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
         ),
       ),
     );
@@ -944,7 +999,10 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   void _handleMenuAction(
-      BuildContext context, String action, GoalModel goal) async {
+    BuildContext context,
+    String action,
+    GoalModel goal,
+  ) async {
     switch (action) {
       case 'edit':
         showModalBottomSheet(
@@ -969,7 +1027,10 @@ class DetailGoalScreen extends StatelessWidget {
           }
         } catch (e) {
           if (context.mounted) {
-            UIHelper.showError(context, e.toString().replaceAll('Exception: ', ''));
+            UIHelper.showError(
+              context,
+              e.toString().replaceAll('Exception: ', ''),
+            );
           }
         }
         break;
@@ -1024,8 +1085,10 @@ class DetailGoalScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Kembali",
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              "Kembali",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -1106,8 +1169,10 @@ class DetailGoalScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Batal",
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              "Batal",
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -1128,10 +1193,7 @@ class DetailGoalScreen extends StatelessWidget {
             },
             child: const Text(
               "Hapus",
-              style: TextStyle(
-                color: Colors.red,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -1140,9 +1202,13 @@ class DetailGoalScreen extends StatelessWidget {
   }
 
   void _showDepositWithdrawDialog(
-      BuildContext context, GoalModel goal, bool isDeposit) {
+    BuildContext context,
+    GoalModel goal,
+    bool isDeposit,
+  ) {
     final amountController = TextEditingController();
     final noteController = TextEditingController();
+    final amountFormatter = const CurrencyTextInputFormatter();
     DateTime selectedDate = DateTime.now();
     bool isLoading = false;
 
@@ -1207,8 +1273,7 @@ class DetailGoalScreen extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color:
-                              Theme.of(context).textTheme.bodyLarge?.color,
+                          color: Theme.of(context).textTheme.bodyLarge?.color,
                         ),
                       ),
                     ],
@@ -1218,10 +1283,7 @@ class DetailGoalScreen extends StatelessWidget {
                   // Current info
                   Text(
                     "Saldo saat ini: ${_formatRupiah(goal.currentAmount)}",
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                   ),
                   if (isDeposit)
                     Text(
@@ -1238,10 +1300,7 @@ class DetailGoalScreen extends StatelessWidget {
                     controller: amountController,
                     keyboardType: TextInputType.number,
                     autofocus: true,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      ThousandsSeparatorFormatter(),
-                    ],
+                    inputFormatters: [amountFormatter],
                     decoration: InputDecoration(
                       labelText: "Jumlah (Rp)",
                       prefixText: "Rp ",
@@ -1277,8 +1336,16 @@ class DetailGoalScreen extends StatelessWidget {
                         ? null
                         : () async {
                             final DateTime today = DateTime.now();
-                            final DateTime firstDate = DateTime(today.year - 5, 1, 1);
-                            final DateTime lastDate = DateTime(today.year + 5, 12, 31);
+                            final DateTime firstDate = DateTime(
+                              today.year - 5,
+                              1,
+                              1,
+                            );
+                            final DateTime lastDate = DateTime(
+                              today.year + 5,
+                              12,
+                              31,
+                            );
                             final DateTime? picked = await showDatePicker(
                               context: context,
                               initialDate: _stripTime(selectedDate),
@@ -1303,7 +1370,9 @@ class DetailGoalScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(15),
                     child: InputDecorator(
                       decoration: InputDecoration(
-                        labelText: isDeposit ? "Tanggal Setor" : "Tanggal Tarik",
+                        labelText: isDeposit
+                            ? "Tanggal Setor"
+                            : "Tanggal Tarik",
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(15),
                         ),
@@ -1329,7 +1398,9 @@ class DetailGoalScreen extends StatelessWidget {
 
                               if (amount == null || amount <= 0) {
                                 UIHelper.showError(
-                                    context, "Masukkan jumlah yang valid");
+                                  context,
+                                  "Masukkan jumlah yang valid",
+                                );
                                 return;
                               }
 
@@ -1376,8 +1447,7 @@ class DetailGoalScreen extends StatelessWidget {
                               }
                             },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            isDeposit ? _primaryColor : Colors.red,
+                        backgroundColor: isDeposit ? _primaryColor : Colors.red,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
@@ -1427,6 +1497,7 @@ class DetailGoalScreen extends StatelessWidget {
     final TextEditingController noteController = TextEditingController(
       text: allocation.note ?? '',
     );
+    final amountFormatter = const CurrencyTextInputFormatter();
     DateTime selectedDate = allocation.createdAt;
     bool isLoading = false;
 
@@ -1446,7 +1517,9 @@ class DetailGoalScreen extends StatelessWidget {
               ),
               decoration: BoxDecoration(
                 color: Theme.of(context).scaffoldBackgroundColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(25)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(25),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1475,10 +1548,7 @@ class DetailGoalScreen extends StatelessWidget {
                   TextField(
                     controller: amountController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      ThousandsSeparatorFormatter(),
-                    ],
+                    inputFormatters: [amountFormatter],
                     decoration: InputDecoration(
                       labelText: 'Jumlah (Rp)',
                       prefixText: 'Rp ',
@@ -1547,10 +1617,15 @@ class DetailGoalScreen extends StatelessWidget {
                                   .replaceAll('.', '')
                                   .replaceAll(',', '')
                                   .trim();
-                              final double? amount = double.tryParse(amountText);
+                              final double? amount = double.tryParse(
+                                amountText,
+                              );
 
                               if (amount == null || amount <= 0) {
-                                UIHelper.showError(context, 'Masukkan jumlah yang valid');
+                                UIHelper.showError(
+                                  context,
+                                  'Masukkan jumlah yang valid',
+                                );
                                 return;
                               }
 

@@ -1,37 +1,11 @@
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 import 'package:artoku_app/features/wallet/data/wallet_model.dart';
 import 'package:artoku_app/features/transfer/data/transfer_model.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-
-// Formatter for thousand separators
-class ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-    if (newText.isEmpty) {
-      return const TextEditingValue();
-    }
-
-    final number = int.parse(newText);
-    final formatter = NumberFormat('#,###', 'id_ID');
-    String formattedText = formatter.format(number);
-
-    return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
-  }
-}
 
 class TransferFundDialog extends StatefulWidget {
   final TransferModel? transfer;
@@ -47,6 +21,8 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
 
   WalletModel? _sourceWallet;
   WalletModel? _destinationWallet;
@@ -90,10 +66,16 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
         setState(() {
           _wallets = wallets;
           if (_isEditMode) {
-            _sourceWallet = _wallets.firstWhere((w) => w.id == widget.transfer!.sourceWalletId);
-            _destinationWallet = _wallets.firstWhere((w) => w.id == widget.transfer!.destinationWalletId);
-            _amountController.text =
-                NumberFormat('#,###', 'id_ID').format(widget.transfer!.amount);
+            _sourceWallet = _wallets.firstWhere(
+              (w) => w.id == widget.transfer!.sourceWalletId,
+            );
+            _destinationWallet = _wallets.firstWhere(
+              (w) => w.id == widget.transfer!.destinationWalletId,
+            );
+            _amountController.text = NumberFormat(
+              '#,###',
+              'id_ID',
+            ).format(widget.transfer!.amount);
             _noteController.text = widget.transfer!.notes;
           }
           _isLoading = false;
@@ -121,7 +103,10 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
         return;
       }
       if (_sourceWallet!.id == _destinationWallet!.id) {
-        UIHelper.showError(context, "Dompet sumber dan tujuan tidak boleh sama.");
+        UIHelper.showError(
+          context,
+          "Dompet sumber dan tujuan tidak boleh sama.",
+        );
         return;
       }
       if (!_isEditMode && _sourceWallet!.balance < amount) {
@@ -136,35 +121,43 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
         if (user == null) return;
 
         final batch = FirebaseFirestore.instance.batch();
-        final usersRef =
-            FirebaseFirestore.instance.collection('users').doc(user.uid);
+        final usersRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid);
 
         if (_isEditMode) {
           // Revert the old transfer
           final double oldAmount = widget.transfer!.amount;
-          final oldSourceWalletRef =
-              usersRef.collection('wallets').doc(widget.transfer!.sourceWalletId);
-          batch.update(oldSourceWalletRef, {'balance': FieldValue.increment(oldAmount)});
+          final oldSourceWalletRef = usersRef
+              .collection('wallets')
+              .doc(widget.transfer!.sourceWalletId);
+          batch.update(oldSourceWalletRef, {
+            'balance': FieldValue.increment(oldAmount),
+          });
           final oldDestWalletRef = usersRef
               .collection('wallets')
               .doc(widget.transfer!.destinationWalletId);
-          batch.update(
-              oldDestWalletRef, {'balance': FieldValue.increment(-oldAmount)});
+          batch.update(oldDestWalletRef, {
+            'balance': FieldValue.increment(-oldAmount),
+          });
         }
 
         // Apply the new/updated transfer
-        final sourceDocRef =
-            usersRef.collection('wallets').doc(_sourceWallet!.id);
+        final sourceDocRef = usersRef
+            .collection('wallets')
+            .doc(_sourceWallet!.id);
         batch.update(sourceDocRef, {'balance': FieldValue.increment(-amount)});
 
-        final destDocRef =
-            usersRef.collection('wallets').doc(_destinationWallet!.id);
+        final destDocRef = usersRef
+            .collection('wallets')
+            .doc(_destinationWallet!.id);
         batch.update(destDocRef, {'balance': FieldValue.increment(amount)});
 
         DocumentReference transferDocRef;
         if (_isEditMode) {
-          transferDocRef =
-              usersRef.collection('transfers').doc(widget.transfer!.id);
+          transferDocRef = usersRef
+              .collection('transfers')
+              .doc(widget.transfer!.id);
           batch.update(transferDocRef, {
             'sourceWalletId': _sourceWallet!.id,
             'sourceWalletName': _sourceWallet!.name,
@@ -189,11 +182,14 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
 
         await batch.commit();
 
-      // ignore: use_build_context_synchronously
+        // ignore: use_build_context_synchronously
         Navigator.of(context).pop(); // Close dialog on success
         UIHelper.showSuccess(
           // ignore: use_build_context_synchronously
-            context, "Berhasil", "Dana telah ${_isEditMode ? 'diperbarui' : 'dipindahkan'}.");
+          context,
+          "Berhasil",
+          "Dana telah ${_isEditMode ? 'diperbarui' : 'dipindahkan'}.",
+        );
       } catch (e) {
         if (mounted) {
           UIHelper.showError(context, "Gagal menyimpan transfer: $e");
@@ -239,18 +235,25 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                     children: [
                       // Header icon
                       Container(
-                        width: 56, height: 56,
+                        width: 56,
+                        height: 56,
                         decoration: BoxDecoration(
                           color: primaryColor.withAlpha(25),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.swap_horiz_rounded, color: primaryColor, size: 30),
+                        child: const Icon(
+                          Icons.swap_horiz_rounded,
+                          color: primaryColor,
+                          size: 30,
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         _isEditMode ? "Edit Transfer" : "Pindahkan Dana",
                         style: TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold, color: textColor,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -266,11 +269,14 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         label: "Dari Dompet",
                         icon: Icons.output_rounded,
                         value: _sourceWallet,
-                        items: _wallets.where((w) => w.id != _destinationWallet?.id).toList(),
+                        items: _wallets
+                            .where((w) => w.id != _destinationWallet?.id)
+                            .toList(),
                         onChanged: (wallet) {
                           setState(() {
                             _sourceWallet = wallet;
-                            if (_destinationWallet != null && _destinationWallet!.id == wallet?.id) {
+                            if (_destinationWallet != null &&
+                                _destinationWallet!.id == wallet?.id) {
                               _destinationWallet = null;
                             }
                           });
@@ -283,12 +289,17 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Container(
-                          width: 36, height: 36,
+                          width: 36,
+                          height: 36,
                           decoration: BoxDecoration(
                             color: primaryColor.withAlpha(20),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.arrow_downward_rounded, color: primaryColor, size: 20),
+                          child: const Icon(
+                            Icons.arrow_downward_rounded,
+                            color: primaryColor,
+                            size: 20,
+                          ),
                         ),
                       ),
 
@@ -298,11 +309,14 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         label: "Ke Dompet",
                         icon: Icons.input_rounded,
                         value: _destinationWallet,
-                        items: _wallets.where((w) => w.id != _sourceWallet?.id).toList(),
+                        items: _wallets
+                            .where((w) => w.id != _sourceWallet?.id)
+                            .toList(),
                         onChanged: (wallet) {
                           setState(() {
                             _destinationWallet = wallet;
-                            if (_sourceWallet != null && _sourceWallet!.id == wallet?.id) {
+                            if (_sourceWallet != null &&
+                                _sourceWallet!.id == wallet?.id) {
                               _sourceWallet = null;
                             }
                           });
@@ -315,13 +329,16 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                       // Amount field
                       Align(
                         alignment: Alignment.centerLeft,
-                        child: Text("Jumlah Transfer", style: TextStyle(color: hintColor, fontSize: 12)),
+                        child: Text(
+                          "Jumlah Transfer",
+                          style: TextStyle(color: hintColor, fontSize: 12),
+                        ),
                       ),
                       const SizedBox(height: 6),
                       TextFormField(
                         controller: _amountController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [ThousandsFormatter()],
+                        inputFormatters: [_currencyFormatter],
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -336,7 +353,10 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                           ),
                           hintText: "0",
                           hintStyle: TextStyle(color: Colors.grey.shade300),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey.shade300),
@@ -347,13 +367,21 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: primaryColor, width: 1.5),
+                            borderSide: const BorderSide(
+                              color: primaryColor,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) return 'Masukkan jumlah';
-                          final amount = double.tryParse(value.replaceAll('.', '')) ?? 0;
-                          if (amount <= 0) return 'Jumlah harus lebih dari 0';
+                          if (value == null || value.isEmpty) {
+                            return 'Masukkan jumlah';
+                          }
+                          final amount =
+                              double.tryParse(value.replaceAll('.', '')) ?? 0;
+                          if (amount <= 0) {
+                            return 'Jumlah harus lebih dari 0';
+                          }
                           return null;
                         },
                       ),
@@ -378,8 +406,15 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         decoration: InputDecoration(
                           labelText: 'Catatan (Opsional)',
                           labelStyle: TextStyle(color: hintColor, fontSize: 13),
-                          prefixIcon: Icon(Icons.notes_outlined, color: hintColor, size: 20),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                          prefixIcon: Icon(
+                            Icons.notes_outlined,
+                            color: hintColor,
+                            size: 20,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 12,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                             borderSide: BorderSide(color: Colors.grey.shade300),
@@ -390,7 +425,10 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: primaryColor, width: 1.5),
+                            borderSide: const BorderSide(
+                              color: primaryColor,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                         maxLines: 2,
@@ -402,15 +440,22 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+                              onPressed: _isLoading
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 side: BorderSide(color: Colors.grey.shade400),
                               ),
-                              child: Text("Batal", style: TextStyle(color: textColor)),
+                              child: Text(
+                                "Batal",
+                                style: TextStyle(color: textColor),
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -420,16 +465,24 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                               onPressed: _isLoading ? null : _saveTransfer,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: primaryColor,
-                                disabledBackgroundColor: primaryColor.withAlpha(100),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                disabledBackgroundColor: primaryColor.withAlpha(
+                                  100,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                               ),
                               child: _isLoading
                                   ? const SizedBox(
-                                      width: 22, height: 22,
-                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2,
+                                      ),
                                     )
                                   : Text(
                                       _isEditMode ? "Perbarui" : "Pindahkan",
@@ -466,7 +519,9 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade800.withAlpha(120) : Colors.grey.shade50,
+        color: isDark
+            ? Colors.grey.shade800.withAlpha(120)
+            : Colors.grey.shade50,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade300),
       ),
@@ -494,13 +549,16 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
             dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
             style: TextStyle(color: textColor, fontSize: 14),
             hint: Text("Pilih dompet", style: TextStyle(color: hintColor)),
-            items: items.map<DropdownMenuItem<WalletModel>>((WalletModel wallet) {
+            items: items.map<DropdownMenuItem<WalletModel>>((
+              WalletModel wallet,
+            ) {
               return DropdownMenuItem<WalletModel>(
                 value: wallet,
                 child: Row(
                   children: [
                     Container(
-                      width: 10, height: 10,
+                      width: 10,
+                      height: 10,
                       decoration: BoxDecoration(
                         color: wallet.color,
                         shape: BoxShape.circle,
@@ -512,14 +570,19 @@ class _TransferFundDialogState extends State<TransferFundDialog> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(wallet.balance),
+                      NumberFormat.currency(
+                        locale: 'id_ID',
+                        symbol: 'Rp ',
+                        decimalDigits: 0,
+                      ).format(wallet.balance),
                       style: TextStyle(color: hintColor, fontSize: 12),
                     ),
                   ],
                 ),
               );
             }).toList(),
-            validator: (value) => value == null ? 'Pilih salah satu dompet' : null,
+            validator: (value) =>
+                value == null ? 'Pilih salah satu dompet' : null,
           ),
         ],
       ),

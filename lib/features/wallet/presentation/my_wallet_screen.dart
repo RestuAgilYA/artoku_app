@@ -1,39 +1,15 @@
 import 'package:artoku_app/features/transfer/presentation/transfer_fund_dialog.dart';
-import 'package:artoku_app/features/transfer/presentation/transfer_history_tab.dart' hide TransferFundDialog;
+import 'package:artoku_app/features/transfer/presentation/transfer_history_tab.dart'
+    hide TransferFundDialog;
 import 'package:artoku_app/features/transfer/data/transfer_model.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 import 'package:artoku_app/features/patungan/data/patungan_service.dart';
-
-class ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-
-    if (newText.isEmpty) {
-      return const TextEditingValue();
-    }
-
-    final number = int.parse(newText);
-    final formatter = NumberFormat('#,###', 'id_ID');
-    String formattedText = formatter.format(number);
-
-    return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
-  }
-}
 
 class MyWalletScreen extends StatefulWidget {
   const MyWalletScreen({super.key});
@@ -45,8 +21,14 @@ class MyWalletScreen extends StatefulWidget {
 class _MyWalletScreenState extends State<MyWalletScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   int _selectedTab = 0; // 0 = Dompet, 1 = Riwayat Transfer, 2 = Piutang/Utang
-  DateTime _debtFilterMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  DateTime _debtFilterMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  );
   final Color primaryColor = const Color(0xFF0F4C5C);
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
 
   final List<Color> _presetColors = [
     const Color(0xFF0F4C5C),
@@ -59,18 +41,48 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     const Color(0xFF757575),
   ];
 
+  late PageController _pageController;
+  late Stream<QuerySnapshot> _walletStream;
+  late Stream<QuerySnapshot> _debtStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _selectedTab);
+    if (user != null) {
+      _walletStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('wallets')
+          .orderBy('balance', descending: true)
+          .snapshots();
+      _debtStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('debts')
+          .orderBy('createdAt', descending: true)
+          .snapshots();
+    } else {
+      _walletStream = const Stream.empty();
+      _debtStream = const Stream.empty();
+    }
+  }
+
   void _showWalletForm({DocumentSnapshot? document}) {
     final nameController = TextEditingController(
       text: document != null ? document['name'] : '',
     );
     final balanceController = TextEditingController(
       text: document != null
-          ? NumberFormat('#,###', 'id_ID')
-              .format((document['balance'] as num).toInt())
+          ? NumberFormat(
+              '#,###',
+              'id_ID',
+            ).format((document['balance'] as num).toInt())
           : '',
     );
-    Color selectedColor =
-        document != null ? Color(document['color']) : _presetColors[0];
+    Color selectedColor = document != null
+        ? Color(document['color'])
+        : _presetColors[0];
 
     if (document == null) {
       // For new wallet, get available color
@@ -94,11 +106,16 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           builder: (context, setSheetState) {
             return Container(
               padding: EdgeInsets.only(
-                top: 16, left: 24, right: 24, bottom: bottomInset + 24,
+                top: 16,
+                left: 24,
+                right: 24,
+                bottom: bottomInset + 24,
               ),
               decoration: BoxDecoration(
                 color: sheetBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -107,7 +124,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     // Handle bar
                     Center(
                       child: Container(
-                        width: 40, height: 4,
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(2),
@@ -118,7 +136,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     Text(
                       document == null ? "Tambah Dompet" : "Edit Dompet",
                       style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold, color: textColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -126,7 +146,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     // Nama Dompet
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text("Nama Dompet", style: TextStyle(color: hintColor, fontSize: 12)),
+                      child: Text(
+                        "Nama Dompet",
+                        style: TextStyle(color: hintColor, fontSize: 12),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     TextField(
@@ -135,8 +158,15 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       decoration: InputDecoration(
                         hintText: "Contoh: Dompet Utama",
                         hintStyle: TextStyle(color: hintColor),
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: hintColor, size: 20),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                        prefixIcon: Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: hintColor,
+                          size: 20,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -147,7 +177,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF0F4C5C), width: 1.5),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF0F4C5C),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -156,20 +189,29 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     // Saldo Awal
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text("Saldo Awal", style: TextStyle(color: hintColor, fontSize: 12)),
+                      child: Text(
+                        "Saldo Awal",
+                        style: TextStyle(color: hintColor, fontSize: 12),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     TextField(
                       controller: balanceController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsFormatter()],
+                      inputFormatters: [_currencyFormatter],
                       style: TextStyle(color: textColor),
                       decoration: InputDecoration(
                         prefixText: 'Rp ',
-                        prefixStyle: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+                        prefixStyle: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w600,
+                        ),
                         hintText: "0",
                         hintStyle: TextStyle(color: hintColor),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 14,
+                          horizontal: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide(color: Colors.grey.shade300),
@@ -180,7 +222,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF0F4C5C), width: 1.5),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF0F4C5C),
+                            width: 1.5,
+                          ),
                         ),
                       ),
                     ),
@@ -189,7 +234,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     // Color Picker
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text("Warna Dompet", style: TextStyle(color: hintColor, fontSize: 12)),
+                      child: Text(
+                        "Warna Dompet",
+                        style: TextStyle(color: hintColor, fontSize: 12),
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Wrap(
@@ -199,10 +247,12 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         ..._presetColors.map((color) {
                           final isSelected = selectedColor == color;
                           return GestureDetector(
-                            onTap: () => setSheetState(() => selectedColor = color),
+                            onTap: () =>
+                                setSheetState(() => selectedColor = color),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              width: 36, height: 36,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
                                 color: color,
                                 shape: BoxShape.circle,
@@ -210,11 +260,21 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                     ? Border.all(color: textColor, width: 2.5)
                                     : null,
                                 boxShadow: isSelected
-                                    ? [BoxShadow(color: color.withAlpha(100), blurRadius: 8, spreadRadius: 1)]
+                                    ? [
+                                        BoxShadow(
+                                          color: color.withAlpha(100),
+                                          blurRadius: 8,
+                                          spreadRadius: 1,
+                                        ),
+                                      ]
                                     : [],
                               ),
                               child: isSelected
-                                  ? const Icon(Icons.check, color: Colors.white, size: 18)
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: Colors.white,
+                                      size: 18,
+                                    )
                                   : null,
                             ),
                           );
@@ -222,20 +282,25 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         // Custom color button
                         GestureDetector(
                           onTap: () {
-                            _showCustomColorPicker(context, selectedColor, (color) {
+                            _showCustomColorPicker(context, selectedColor, (
+                              color,
+                            ) {
                               setSheetState(() => selectedColor = color);
                             });
                           },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
-                            width: 36, height: 36,
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: !_presetColors.contains(selectedColor)
                                     ? textColor
                                     : Colors.grey.shade400,
-                                width: !_presetColors.contains(selectedColor) ? 2.5 : 1.5,
+                                width: !_presetColors.contains(selectedColor)
+                                    ? 2.5
+                                    : 1.5,
                               ),
                               gradient: const SweepGradient(
                                 colors: [
@@ -250,13 +315,32 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 ],
                               ),
                               boxShadow: !_presetColors.contains(selectedColor)
-                                  ? [BoxShadow(color: selectedColor.withAlpha(100), blurRadius: 8, spreadRadius: 1)]
+                                  ? [
+                                      BoxShadow(
+                                        color: selectedColor.withAlpha(100),
+                                        blurRadius: 8,
+                                        spreadRadius: 1,
+                                      ),
+                                    ]
                                   : [],
                             ),
                             child: !_presetColors.contains(selectedColor)
-                                ? const Icon(Icons.check, color: Colors.white, size: 18)
-                                : Icon(Icons.colorize, color: Colors.white, size: 16,
-                                    shadows: [Shadow(color: Colors.black.withAlpha(120), blurRadius: 3)]),
+                                ? const Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 18,
+                                  )
+                                : Icon(
+                                    Icons.colorize,
+                                    color: Colors.white,
+                                    size: 16,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withAlpha(120),
+                                        blurRadius: 3,
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
                       ],
@@ -268,7 +352,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         child: Row(
                           children: [
                             Container(
-                              width: 20, height: 20,
+                              width: 20,
+                              height: 20,
                               decoration: BoxDecoration(
                                 color: selectedColor,
                                 shape: BoxShape.circle,
@@ -297,7 +382,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               ),
                               side: BorderSide(color: Colors.grey.shade400),
                             ),
-                            child: Text("Batal", style: TextStyle(color: textColor)),
+                            child: Text(
+                              "Batal",
+                              style: TextStyle(color: textColor),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -307,25 +395,34 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             onPressed: () async {
                               // Validasi nama dompet tidak boleh kosong
                               if (nameController.text.trim().isEmpty) {
-                                UIHelper.showError(context, "Nama dompet tidak boleh kosong!");
+                                UIHelper.showError(
+                                  context,
+                                  "Nama dompet tidak boleh kosong!",
+                                );
                                 return;
                               }
 
                               // Validasi nama dompet unik
-                              if (document == null || nameController.text.trim() != document['name']) {
+                              if (document == null ||
+                                  nameController.text.trim() !=
+                                      document['name']) {
                                 final query = await FirebaseFirestore.instance
                                     .collection('users')
                                     .doc(user!.uid)
                                     .collection('wallets')
-                                    .where('name', isEqualTo: nameController.text.trim())
+                                    .where(
+                                      'name',
+                                      isEqualTo: nameController.text.trim(),
+                                    )
                                     .limit(1)
                                     .get();
 
                                 if (query.docs.isNotEmpty) {
-                                  if (mounted) {
-                                    // ignore: use_build_context_synchronously
-                                    UIHelper.showError(context, "Nama dompet sudah ada. Silakan gunakan nama lain!");
-                                  }
+                                  if (!context.mounted) return;
+                                  UIHelper.showError(
+                                    context,
+                                    "Nama dompet sudah ada. Silakan gunakan nama lain!",
+                                  );
                                   return;
                                 }
                               }
@@ -335,8 +432,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   .doc(user!.uid)
                                   .collection('wallets');
 
-                              final balance = double.tryParse(
-                                      balanceController.text.replaceAll('.', '')) ??
+                              final balance =
+                                  double.tryParse(
+                                    balanceController.text.replaceAll('.', ''),
+                                  ) ??
                                   0;
 
                               Map<String, dynamic> data = {
@@ -344,7 +443,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 'balance': balance,
                                 // ignore: deprecated_member_use
                                 'color': selectedColor.value,
-                                'isLocked': document != null ? document['isLocked'] : false,
+                                'isLocked': document != null
+                                    ? document['isLocked']
+                                    : false,
                                 'createdAt': FieldValue.serverTimestamp(),
                               };
 
@@ -385,7 +486,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     );
   }
 
-  void _showCustomColorPicker(BuildContext parentContext, Color currentColor, Function(Color) onColorSelected) {
+  void _showCustomColorPicker(
+    BuildContext parentContext,
+    Color currentColor,
+    Function(Color) onColorSelected,
+  ) {
     double hue = HSVColor.fromColor(currentColor).hue;
     double saturation = HSVColor.fromColor(currentColor).saturation;
     double value = HSVColor.fromColor(currentColor).value;
@@ -399,15 +504,23 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
         return StatefulBuilder(
           builder: (context, setPickerState) {
-            final previewColor = HSVColor.fromAHSV(1.0, hue, saturation, value).toColor();
+            final previewColor = HSVColor.fromAHSV(
+              1.0,
+              hue,
+              saturation,
+              value,
+            ).toColor();
 
             return AlertDialog(
               backgroundColor: bgColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: Row(
                 children: [
                   Container(
-                    width: 28, height: 28,
+                    width: 28,
+                    height: 28,
                     decoration: BoxDecoration(
                       color: previewColor,
                       shape: BoxShape.circle,
@@ -415,7 +528,14 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  Text("Pilih Warna", style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text(
+                    "Pilih Warna",
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
                 ],
               ),
               content: SizedBox(
@@ -424,7 +544,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Hue slider
-                    Text("Warna", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(
+                      "Warna",
+                      style: TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
                     const SizedBox(height: 4),
                     Container(
                       height: 28,
@@ -433,15 +556,24 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         gradient: LinearGradient(
                           colors: List.generate(
                             360 ~/ 10,
-                            (i) => HSVColor.fromAHSV(1.0, i * 10.0, 1.0, 1.0).toColor(),
+                            (i) => HSVColor.fromAHSV(
+                              1.0,
+                              i * 10.0,
+                              1.0,
+                              1.0,
+                            ).toColor(),
                           ),
                         ),
                       ),
                       child: SliderTheme(
                         data: SliderThemeData(
                           trackHeight: 28,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 14),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 14,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 20,
+                          ),
                           thumbColor: Colors.white,
                           activeTrackColor: Colors.transparent,
                           inactiveTrackColor: Colors.transparent,
@@ -457,7 +589,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     ),
                     const SizedBox(height: 14),
                     // Saturation slider
-                    Text("Saturasi", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(
+                      "Saturasi",
+                      style: TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
                     const SizedBox(height: 4),
                     Container(
                       height: 24,
@@ -473,8 +608,12 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       child: SliderTheme(
                         data: SliderThemeData(
                           trackHeight: 24,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 12,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 16,
+                          ),
                           thumbColor: Colors.white,
                           activeTrackColor: Colors.transparent,
                           inactiveTrackColor: Colors.transparent,
@@ -484,13 +623,17 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           value: saturation,
                           min: 0,
                           max: 1,
-                          onChanged: (v) => setPickerState(() => saturation = v),
+                          onChanged: (v) =>
+                              setPickerState(() => saturation = v),
                         ),
                       ),
                     ),
                     const SizedBox(height: 14),
                     // Brightness slider
-                    Text("Kecerahan", style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    Text(
+                      "Kecerahan",
+                      style: TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
                     const SizedBox(height: 4),
                     Container(
                       height: 24,
@@ -498,16 +641,30 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         borderRadius: BorderRadius.circular(12),
                         gradient: LinearGradient(
                           colors: [
-                            HSVColor.fromAHSV(1.0, hue, saturation, 0.0).toColor(),
-                            HSVColor.fromAHSV(1.0, hue, saturation, 1.0).toColor(),
+                            HSVColor.fromAHSV(
+                              1.0,
+                              hue,
+                              saturation,
+                              0.0,
+                            ).toColor(),
+                            HSVColor.fromAHSV(
+                              1.0,
+                              hue,
+                              saturation,
+                              1.0,
+                            ).toColor(),
                           ],
                         ),
                       ),
                       child: SliderTheme(
                         data: SliderThemeData(
                           trackHeight: 24,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 12),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                          thumbShape: const RoundSliderThumbShape(
+                            enabledThumbRadius: 12,
+                          ),
+                          overlayShape: const RoundSliderOverlayShape(
+                            overlayRadius: 16,
+                          ),
                           thumbColor: Colors.white,
                           activeTrackColor: Colors.transparent,
                           inactiveTrackColor: Colors.transparent,
@@ -556,7 +713,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: previewColor,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: Text(
                     "Pilih Warna",
@@ -580,11 +739,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         .doc(user!.uid)
         .collection('wallets')
         .get();
-    
+
     final usedColors = snapshot.docs
         .map((doc) => (doc['color'] as int))
         .toSet();
-    
+
     // Find first available color
     for (Color color in _presetColors) {
       // ignore: deprecated_member_use
@@ -649,11 +808,17 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           _buildToggleSwitch(Theme.of(context).cardColor, isDark),
           const SizedBox(height: 20),
           Expanded(
-            child: _selectedTab == 0
-                ? _buildWalletListTab(textColor)
-                : _selectedTab == 1
-                    ? TransferHistoryTab(onEdit: _showTransferForm)
-                    : _buildDebtTab(textColor),
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _selectedTab = index);
+              },
+              children: [
+                KeepAliveWrapper(child: _buildWalletListTab(textColor)),
+                KeepAliveWrapper(child: TransferHistoryTab(onEdit: _showTransferForm)),
+                KeepAliveWrapper(child: _buildDebtTab(textColor)),
+              ],
+            ),
           ),
         ],
       ),
@@ -664,6 +829,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.all(4),
+      height: 48,
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(30),
@@ -676,12 +842,35 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          _toggleButton("Dompet", 0),
-          _toggleButton("Transfer", 1),
-          _toggleButton("Piutang/Utang", 2),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabWidth = constraints.maxWidth / 3;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                left: _selectedTab * tabWidth,
+                top: 0,
+                bottom: 0,
+                width: tabWidth,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  _toggleButton("Dompet", 0),
+                  _toggleButton("Transfer", 1),
+                  _toggleButton("Piutang/Utang", 2),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -690,22 +879,24 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     bool isActive = _selectedTab == tabIndex;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = tabIndex),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive ? primaryColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(25),
-          ),
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          _pageController.animateToPage(
+            tabIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        },
+        child: Container(
           alignment: Alignment.center,
-          child: Text(
-            title,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 200),
             style: TextStyle(
               color: isActive ? Colors.white : Colors.grey,
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
+            child: Text(title),
           ),
         ),
       ),
@@ -714,12 +905,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
   Widget _buildWalletListTab(Color textColor) {
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(user?.uid)
-          .collection('wallets')
-          .orderBy('balance', descending: true)
-          .snapshots(),
+      stream: _walletStream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -772,8 +958,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   double balance = (data['balance'] ?? 0).toDouble();
                   bool isLocked = data['isLocked'] ?? false;
 
-                  double percentage =
-                      totalAssets > 0 ? (balance / totalAssets) : 0;
+                  double percentage = totalAssets > 0
+                      ? (balance / totalAssets)
+                      : 0;
                   if (percentage < 0) percentage = 0;
 
                   return Opacity(
@@ -955,9 +1142,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     .delete();
                 Navigator.pop(context);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text("Hapus", style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -975,7 +1160,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
   }
 
   bool _isInSelectedDebtMonth(DateTime date) {
-    return date.year == _debtFilterMonth.year && date.month == _debtFilterMonth.month;
+    return date.year == _debtFilterMonth.year &&
+        date.month == _debtFilterMonth.month;
   }
 
   String _monthYearLabel(DateTime date) {
@@ -1000,15 +1186,19 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     int selectedMonth = _debtFilterMonth.month;
     int selectedYear = _debtFilterMonth.year;
     final DateTime now = DateTime.now();
-    final List<int> yearOptions =
-        List<int>.generate(11, (index) => (now.year - 5) + index);
+    final List<int> yearOptions = List<int>.generate(
+      11,
+      (index) => (now.year - 5) + index,
+    );
 
     final DateTime? picked = await showModalBottomSheet<DateTime>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final bool isDark = Theme.of(ctx).brightness == Brightness.dark;
-        final Color sheetColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        final Color sheetColor = isDark
+            ? const Color(0xFF1E1E1E)
+            : Colors.white;
 
         return StatefulBuilder(
           builder: (ctx, setModalState) {
@@ -1016,7 +1206,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               decoration: BoxDecoration(
                 color: sheetColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -1056,7 +1248,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             12,
                             (index) => DropdownMenuItem<int>(
                               value: index + 1,
-                              child: Text(_monthYearLabel(DateTime(2000, index + 1, 1)).split(' ').first),
+                              child: Text(
+                                _monthYearLabel(
+                                  DateTime(2000, index + 1, 1),
+                                ).split(' ').first,
+                              ),
                             ),
                           ),
                           onChanged: (value) {
@@ -1141,7 +1337,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     if (document != null) {
       final docData = document.data() as Map<String, dynamic>;
       if (docData['patunganId'] != null) {
-        UIHelper.showError(context, "Piutang ini terhubung dengan Patungan. Kelola dari menu Patungan.");
+        UIHelper.showError(
+          context,
+          "Piutang ini terhubung dengan Patungan. Kelola dari menu Patungan.",
+        );
         return;
       }
     }
@@ -1156,31 +1355,39 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
     String? selectedWalletId;
     if (document != null) {
-      final docWalletId = (document.data() as Map<String, dynamic>)['walletId'] as String?;
-      if (docWalletId != null && unlockedWallets.any((w) => w.id == docWalletId)) {
+      final docWalletId =
+          (document.data() as Map<String, dynamic>)['walletId'] as String?;
+      if (docWalletId != null &&
+          unlockedWallets.any((w) => w.id == docWalletId)) {
         selectedWalletId = docWalletId;
       }
     }
 
     final nameController = TextEditingController(
-      text: document != null ? (document.data() as Map<String, dynamic>)['personName'] ?? '' : '',
+      text: document != null
+          ? (document.data() as Map<String, dynamic>)['personName'] ?? ''
+          : '',
     );
     final amountController = TextEditingController(
       text: document != null
-          ? NumberFormat('#,###', 'id_ID')
-              .format(((document.data() as Map<String, dynamic>)['amount'] as num).toInt())
+          ? NumberFormat('#,###', 'id_ID').format(
+              ((document.data() as Map<String, dynamic>)['amount'] as num)
+                  .toInt(),
+            )
           : '',
     );
     final noteController = TextEditingController(
-      text: document != null ? (document.data() as Map<String, dynamic>)['note'] ?? '' : '',
+      text: document != null
+          ? (document.data() as Map<String, dynamic>)['note'] ?? ''
+          : '',
     );
     final monthlyPaymentValue = document != null
-      ? (document.data() as Map<String, dynamic>)['monthlyPayment'] as num?
-      : null;
+        ? (document.data() as Map<String, dynamic>)['monthlyPayment'] as num?
+        : null;
     final monthlyPaymentController = TextEditingController(
       text: monthlyPaymentValue != null
-        ? NumberFormat('#,###', 'id_ID').format(monthlyPaymentValue.toInt())
-        : '',
+          ? NumberFormat('#,###', 'id_ID').format(monthlyPaymentValue.toInt())
+          : '',
     );
 
     String selectedType = document != null
@@ -1188,15 +1395,21 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         : 'piutang';
 
     String selectedScheme = document != null
-      ? (document.data() as Map<String, dynamic>)['paymentScheme'] ?? 'sekali'
-      : 'sekali';
+        ? (document.data() as Map<String, dynamic>)['paymentScheme'] ?? 'sekali'
+        : 'sekali';
 
-    DateTime selectedDate = document != null && (document.data() as Map<String, dynamic>)['createdAt'] != null
-        ? ((document.data() as Map<String, dynamic>)['createdAt'] as Timestamp).toDate()
+    DateTime selectedDate =
+        document != null &&
+            (document.data() as Map<String, dynamic>)['createdAt'] != null
+        ? ((document.data() as Map<String, dynamic>)['createdAt'] as Timestamp)
+              .toDate()
         : DateTime.now();
 
-    DateTime? dueDate = document != null && (document.data() as Map<String, dynamic>)['dueDate'] != null
-        ? ((document.data() as Map<String, dynamic>)['dueDate'] as Timestamp).toDate()
+    DateTime? dueDate =
+        document != null &&
+            (document.data() as Map<String, dynamic>)['dueDate'] != null
+        ? ((document.data() as Map<String, dynamic>)['dueDate'] as Timestamp)
+              .toDate()
         : null;
 
     if (!mounted) return;
@@ -1215,14 +1428,20 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             final piutangActive = selectedType == 'piutang';
-            final accentColor = piutangActive ? const Color(0xFF00897B) : Colors.red;
+            final accentColor = piutangActive
+                ? const Color(0xFF00897B)
+                : Colors.red;
             final isCredit = selectedScheme == 'kredit';
             final amountValue = _parseCurrency(amountController.text);
-            final monthlyPaymentAmount = _parseCurrency(monthlyPaymentController.text);
-            final isMonthlyOver = isCredit &&
+            final monthlyPaymentAmount = _parseCurrency(
+              monthlyPaymentController.text,
+            );
+            final isMonthlyOver =
+                isCredit &&
                 amountValue > 0 &&
                 monthlyPaymentAmount > amountValue;
-            final canSave = nameController.text.trim().isNotEmpty &&
+            final canSave =
+                nameController.text.trim().isNotEmpty &&
                 amountValue > 0 &&
                 selectedWalletId != null &&
                 (!isCredit || (monthlyPaymentAmount > 0 && !isMonthlyOver));
@@ -1254,9 +1473,15 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 hintStyle: TextStyle(color: hintColor),
                 prefixIcon: prefixIcon,
                 prefixText: prefixText,
-                prefixStyle: TextStyle(color: textColor, fontWeight: FontWeight.w600),
+                prefixStyle: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w600,
+                ),
                 suffixIcon: suffixIcon,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 12,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey.shade300),
@@ -1277,11 +1502,16 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 maxHeight: MediaQuery.of(context).size.height * 0.85,
               ),
               padding: EdgeInsets.only(
-                top: 16, left: 24, right: 24, bottom: bottomInset + 24,
+                top: 16,
+                left: 24,
+                right: 24,
+                bottom: bottomInset + 24,
               ),
               decoration: BoxDecoration(
                 color: sheetBg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
               ),
               child: SingleChildScrollView(
                 child: Column(
@@ -1290,7 +1520,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     // Handle bar
                     Center(
                       child: Container(
-                        width: 40, height: 4,
+                        width: 40,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: Colors.grey.shade300,
                           borderRadius: BorderRadius.circular(2),
@@ -1299,9 +1530,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      document == null ? "Tambah Piutang/Utang" : "Edit Piutang/Utang",
+                      document == null
+                          ? "Tambah Piutang/Utang"
+                          : "Edit Piutang/Utang",
                       style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold, color: textColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -1309,7 +1544,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     // Type selector
                     Container(
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                        color: isDark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       padding: const EdgeInsets.all(4),
@@ -1317,29 +1554,47 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => setSheetState(() => selectedType = 'piutang'),
+                              onTap: () =>
+                                  setSheetState(() => selectedType = 'piutang'),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: piutangActive ? const Color(0xFF00897B) : Colors.transparent,
+                                  color: piutangActive
+                                      ? const Color(0xFF00897B)
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(10),
                                   boxShadow: piutangActive
-                                      ? [BoxShadow(color: const Color(0xFF00897B).withAlpha(60), blurRadius: 8)]
+                                      ? [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF00897B,
+                                            ).withAlpha(60),
+                                            blurRadius: 8,
+                                          ),
+                                        ]
                                       : [],
                                 ),
                                 alignment: Alignment.center,
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.arrow_upward_rounded,
-                                        size: 16,
-                                        color: piutangActive ? Colors.white : Colors.grey),
+                                    Icon(
+                                      Icons.arrow_upward_rounded,
+                                      size: 16,
+                                      color: piutangActive
+                                          ? Colors.white
+                                          : Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       "Piutang",
                                       style: TextStyle(
-                                        color: piutangActive ? Colors.white : Colors.grey,
+                                        color: piutangActive
+                                            ? Colors.white
+                                            : Colors.grey,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
                                       ),
@@ -1351,29 +1606,45 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           ),
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => setSheetState(() => selectedType = 'utang'),
+                              onTap: () =>
+                                  setSheetState(() => selectedType = 'utang'),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: !piutangActive ? Colors.red : Colors.transparent,
+                                  color: !piutangActive
+                                      ? Colors.red
+                                      : Colors.transparent,
                                   borderRadius: BorderRadius.circular(10),
                                   boxShadow: !piutangActive
-                                      ? [BoxShadow(color: Colors.red.withAlpha(60), blurRadius: 8)]
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.red.withAlpha(60),
+                                            blurRadius: 8,
+                                          ),
+                                        ]
                                       : [],
                                 ),
                                 alignment: Alignment.center,
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.arrow_downward_rounded,
-                                        size: 16,
-                                        color: !piutangActive ? Colors.white : Colors.grey),
+                                    Icon(
+                                      Icons.arrow_downward_rounded,
+                                      size: 16,
+                                      color: !piutangActive
+                                          ? Colors.white
+                                          : Colors.grey,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       "Utang",
                                       style: TextStyle(
-                                        color: !piutangActive ? Colors.white : Colors.grey,
+                                        color: !piutangActive
+                                            ? Colors.white
+                                            : Colors.grey,
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
                                       ),
@@ -1394,8 +1665,14 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       style: TextStyle(color: textColor),
                       onChanged: (_) => setSheetState(() {}),
                       decoration: fieldDecoration(
-                        label: piutangActive ? "Nama Peminjam" : "Nama Pemberi Pinjaman",
-                        prefixIcon: Icon(Icons.person_outline, color: hintColor, size: 20),
+                        label: piutangActive
+                            ? "Nama Peminjam"
+                            : "Nama Pemberi Pinjaman",
+                        prefixIcon: Icon(
+                          Icons.person_outline,
+                          color: hintColor,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1404,7 +1681,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     TextField(
                       controller: amountController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsFormatter()],
+                      inputFormatters: [_currencyFormatter],
                       style: TextStyle(color: textColor),
                       onChanged: (_) => setSheetState(() {}),
                       decoration: fieldDecoration(
@@ -1426,7 +1703,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     const SizedBox(height: 6),
                     Container(
                       decoration: BoxDecoration(
-                        color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                        color: isDark
+                            ? Colors.grey.shade800
+                            : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(14),
                       ),
                       padding: const EdgeInsets.all(4),
@@ -1440,7 +1719,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               }),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: selectedScheme == 'sekali'
                                       ? primaryColor
@@ -1489,7 +1770,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               }),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   color: selectedScheme == 'kredit'
                                       ? primaryColor
@@ -1540,7 +1823,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       TextField(
                         controller: monthlyPaymentController,
                         keyboardType: TextInputType.number,
-                        inputFormatters: [ThousandsFormatter()],
+                        inputFormatters: [_currencyFormatter],
                         style: TextStyle(color: textColor),
                         onChanged: (_) => setSheetState(() {}),
                         decoration: fieldDecoration(
@@ -1588,11 +1871,12 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                estimateMonths != null && estimatedFinishMonth != null
+                                estimateMonths != null &&
+                                        estimatedFinishMonth != null
                                     ? "Estimasi selesai: ${_monthYearLabel(estimatedFinishMonth)} ($estimateMonths bulan)"
                                     : isMonthlyOver
-                                        ? "Perbaiki cicilan agar estimasi muncul."
-                                        : "Isi jumlah dan cicilan per bulan untuk melihat estimasi.",
+                                    ? "Perbaiki cicilan agar estimasi muncul."
+                                    : "Isi jumlah dan cicilan per bulan untuk melihat estimasi.",
                                 style: TextStyle(
                                   fontSize: 11.5,
                                   color: hintColor,
@@ -1612,7 +1896,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       style: TextStyle(color: textColor),
                       decoration: fieldDecoration(
                         label: "Keterangan (opsional)",
-                        prefixIcon: Icon(Icons.notes_outlined, color: hintColor, size: 20),
+                        prefixIcon: Icon(
+                          Icons.notes_outlined,
+                          color: hintColor,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -1622,13 +1910,18 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       initialValue: selectedWalletId,
                       decoration: fieldDecoration(
                         label: "Dompet",
-                        prefixIcon: Icon(Icons.account_balance_wallet_outlined, color: hintColor, size: 20),
+                        prefixIcon: Icon(
+                          Icons.account_balance_wallet_outlined,
+                          color: hintColor,
+                          size: 20,
+                        ),
                       ),
                       dropdownColor: sheetBg,
                       style: TextStyle(color: textColor, fontSize: 14),
                       items: unlockedWallets.map((wallet) {
                         final walletData = wallet.data();
-                        final walletBalance = (walletData['balance'] ?? 0).toDouble();
+                        final walletBalance = (walletData['balance'] ?? 0)
+                            .toDouble();
                         return DropdownMenuItem<String>(
                           value: wallet.id,
                           child: Row(
@@ -1655,7 +1948,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                       onChanged: (value) {
                         setSheetState(() => selectedWalletId = value);
                       },
-                      hint: Text("Pilih dompet", style: TextStyle(color: hintColor)),
+                      hint: Text(
+                        "Pilih dompet",
+                        style: TextStyle(color: hintColor),
+                      ),
                       isExpanded: true,
                     ),
                     const SizedBox(height: 14),
@@ -1678,7 +1974,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               }
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey.shade300),
@@ -1688,15 +1987,31 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.calendar_today, size: 14, color: hintColor),
+                                      Icon(
+                                        Icons.calendar_today,
+                                        size: 14,
+                                        color: hintColor,
+                                      ),
                                       const SizedBox(width: 4),
-                                      Text("Tanggal", style: TextStyle(color: hintColor, fontSize: 11)),
+                                      Text(
+                                        "Tanggal",
+                                        style: TextStyle(
+                                          color: hintColor,
+                                          fontSize: 11,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    DateFormat('dd MMM yyyy').format(selectedDate),
-                                    style: TextStyle(color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
+                                    DateFormat(
+                                      'dd MMM yyyy',
+                                    ).format(selectedDate),
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -1710,7 +2025,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: context,
-                                initialDate: dueDate ?? DateTime.now().add(const Duration(days: 30)),
+                                initialDate:
+                                    dueDate ??
+                                    DateTime.now().add(
+                                      const Duration(days: 30),
+                                    ),
                                 firstDate: DateTime(2020),
                                 lastDate: DateTime(2030),
                               );
@@ -1719,7 +2038,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               }
                             },
                             child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 14,
+                              ),
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(color: Colors.grey.shade300),
@@ -1729,26 +2051,48 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.event, size: 14, color: hintColor),
+                                      Icon(
+                                        Icons.event,
+                                        size: 14,
+                                        color: hintColor,
+                                      ),
                                       const SizedBox(width: 4),
                                       Expanded(
-                                        child: Text("Jatuh Tempo", style: TextStyle(color: hintColor, fontSize: 11), overflow: TextOverflow.ellipsis),
+                                        child: Text(
+                                          "Jatuh Tempo",
+                                          style: TextStyle(
+                                            color: hintColor,
+                                            fontSize: 11,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
                                       ),
                                       if (dueDate != null)
                                         GestureDetector(
-                                          onTap: () => setSheetState(() => dueDate = null),
-                                          child: Icon(Icons.clear, size: 14, color: hintColor),
+                                          onTap: () => setSheetState(
+                                            () => dueDate = null,
+                                          ),
+                                          child: Icon(
+                                            Icons.clear,
+                                            size: 14,
+                                            color: hintColor,
+                                          ),
                                         ),
                                     ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     dueDate != null
-                                        ? DateFormat('dd MMM yyyy').format(dueDate!)
+                                        ? DateFormat(
+                                            'dd MMM yyyy',
+                                          ).format(dueDate!)
                                         : 'Tidak ada',
                                     style: TextStyle(
-                                      color: dueDate != null ? textColor : hintColor,
-                                      fontSize: 13, fontWeight: FontWeight.w500,
+                                      color: dueDate != null
+                                          ? textColor
+                                          : hintColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -1773,7 +2117,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               ),
                               side: BorderSide(color: Colors.grey.shade400),
                             ),
-                            child: Text("Batal", style: TextStyle(color: textColor)),
+                            child: Text(
+                              "Batal",
+                              style: TextStyle(color: textColor),
+                            ),
                           ),
                         ),
                         if (canSave) ...[
@@ -1782,115 +2129,154 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             flex: 2,
                             child: ElevatedButton(
                               onPressed: () async {
-                              if (nameController.text.trim().isEmpty) {
-                                UIHelper.showError(context, "Nama tidak boleh kosong!");
-                                return;
-                              }
+                                if (nameController.text.trim().isEmpty) {
+                                  UIHelper.showError(
+                                    context,
+                                    "Nama tidak boleh kosong!",
+                                  );
+                                  return;
+                                }
 
-                              final debtRef = FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(user!.uid)
-                                  .collection('debts');
+                                final debtRef = FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user!.uid)
+                                    .collection('debts');
 
-                              final amount = _parseCurrency(amountController.text);
-
-                              if (amount <= 0) {
-                                UIHelper.showError(context, "Jumlah harus lebih dari 0!");
-                                return;
-                              }
-
-                              final monthlyPayment =
-                                  _parseCurrency(monthlyPaymentController.text);
-
-                              if (selectedScheme == 'kredit' &&
-                                  monthlyPayment <= 0) {
-                                UIHelper.showError(
-                                  context,
-                                  "Cicilan per bulan harus lebih dari 0!",
+                                final amount = _parseCurrency(
+                                  amountController.text,
                                 );
-                                return;
-                              }
-                              if (selectedScheme == 'kredit' &&
-                                  monthlyPayment > amount) {
-                                UIHelper.showError(
-                                  context,
-                                  "Cicilan per bulan tidak boleh lebih besar dari jumlah.",
+
+                                if (amount <= 0) {
+                                  UIHelper.showError(
+                                    context,
+                                    "Jumlah harus lebih dari 0!",
+                                  );
+                                  return;
+                                }
+
+                                final monthlyPayment = _parseCurrency(
+                                  monthlyPaymentController.text,
                                 );
-                                return;
-                              }
 
-                              Map<String, dynamic> data = {
-                                'type': selectedType,
-                                'paymentScheme': selectedScheme,
-                                'monthlyPayment':
-                                    selectedScheme == 'kredit' ? monthlyPayment : null,
-                                'paidAmount': selectedScheme == 'kredit'
-                                  ? (document != null
-                                    ? ((document.data() as Map<String, dynamic>)['paidAmount'] as num?)?.toDouble() ?? 0
-                                    : 0)
-                                  : null,
-                                'personName': nameController.text.trim(),
-                                'amount': amount,
-                                'note': noteController.text.trim(),
-                                'isPaid': document != null
-                                    ? (document.data() as Map<String, dynamic>)['isPaid'] ?? false
-                                    : false,
-                                'createdAt': Timestamp.fromDate(selectedDate),
-                                'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
-                                'walletId': selectedWalletId,
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              };
+                                if (selectedScheme == 'kredit' &&
+                                    monthlyPayment <= 0) {
+                                  UIHelper.showError(
+                                    context,
+                                    "Cicilan per bulan harus lebih dari 0!",
+                                  );
+                                  return;
+                                }
+                                if (selectedScheme == 'kredit' &&
+                                    monthlyPayment > amount) {
+                                  UIHelper.showError(
+                                    context,
+                                    "Cicilan per bulan tidak boleh lebih besar dari jumlah.",
+                                  );
+                                  return;
+                                }
 
-                              final batch = FirebaseFirestore.instance.batch();
+                                Map<String, dynamic> data = {
+                                  'type': selectedType,
+                                  'paymentScheme': selectedScheme,
+                                  'monthlyPayment': selectedScheme == 'kredit'
+                                      ? monthlyPayment
+                                      : null,
+                                  'paidAmount': selectedScheme == 'kredit'
+                                      ? (document != null
+                                            ? ((document.data()
+                                                              as Map<
+                                                                String,
+                                                                dynamic
+                                                              >)['paidAmount']
+                                                          as num?)
+                                                      ?.toDouble() ??
+                                                  0
+                                            : 0)
+                                      : null,
+                                  'personName': nameController.text.trim(),
+                                  'amount': amount,
+                                  'note': noteController.text.trim(),
+                                  'isPaid': document != null
+                                      ? (document.data()
+                                                as Map<
+                                                  String,
+                                                  dynamic
+                                                >)['isPaid'] ??
+                                            false
+                                      : false,
+                                  'createdAt': Timestamp.fromDate(selectedDate),
+                                  'dueDate': dueDate != null
+                                      ? Timestamp.fromDate(dueDate!)
+                                      : null,
+                                  'walletId': selectedWalletId,
+                                  'updatedAt': FieldValue.serverTimestamp(),
+                                };
 
-                              // Reverse old wallet effect when editing
-                              if (document != null) {
-                                final oldData = document.data() as Map<String, dynamic>;
-                                final oldWalletId = oldData['walletId'] as String?;
-                                final oldAmount = (oldData['amount'] ?? 0).toDouble();
-                                final oldType = oldData['type'] ?? 'piutang';
-                                final oldIsPaid = oldData['isPaid'] == true;
+                                final batch = FirebaseFirestore.instance
+                                    .batch();
 
-                                if (oldWalletId != null && !oldIsPaid) {
-                                  final oldWalletRef = FirebaseFirestore.instance
-                                      .collection('users').doc(user!.uid)
-                                      .collection('wallets').doc(oldWalletId);
-                                  // Reverse: piutang was -, so add back; utang was +, so subtract back
-                                  batch.update(oldWalletRef, {
+                                // Reverse old wallet effect when editing
+                                if (document != null) {
+                                  final oldData =
+                                      document.data() as Map<String, dynamic>;
+                                  final oldWalletId =
+                                      oldData['walletId'] as String?;
+                                  final oldAmount = (oldData['amount'] ?? 0)
+                                      .toDouble();
+                                  final oldType = oldData['type'] ?? 'piutang';
+                                  final oldIsPaid = oldData['isPaid'] == true;
+
+                                  if (oldWalletId != null && !oldIsPaid) {
+                                    final oldWalletRef = FirebaseFirestore
+                                        .instance
+                                        .collection('users')
+                                        .doc(user!.uid)
+                                        .collection('wallets')
+                                        .doc(oldWalletId);
+                                    // Reverse: piutang was -, so add back; utang was +, so subtract back
+                                    batch.update(oldWalletRef, {
+                                      'balance': FieldValue.increment(
+                                        oldType == 'piutang'
+                                            ? oldAmount
+                                            : -oldAmount,
+                                      ),
+                                    });
+                                  }
+                                }
+
+                                // Apply new wallet effect
+                                final isPaid = data['isPaid'] == true;
+                                if (selectedWalletId != null && !isPaid) {
+                                  final walletRef = FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(user!.uid)
+                                      .collection('wallets')
+                                      .doc(selectedWalletId);
+                                  // Piutang (lending): decrease balance; Utang (borrowing): increase balance
+                                  batch.update(walletRef, {
                                     'balance': FieldValue.increment(
-                                      oldType == 'piutang' ? oldAmount : -oldAmount,
+                                      selectedType == 'piutang'
+                                          ? -amount
+                                          : amount,
                                     ),
                                   });
                                 }
-                              }
 
-                              // Apply new wallet effect
-                              final isPaid = data['isPaid'] == true;
-                              if (selectedWalletId != null && !isPaid) {
-                                final walletRef = FirebaseFirestore.instance
-                                    .collection('users').doc(user!.uid)
-                                    .collection('wallets').doc(selectedWalletId);
-                                // Piutang (lending): decrease balance; Utang (borrowing): increase balance
-                                batch.update(walletRef, {
-                                  'balance': FieldValue.increment(
-                                    selectedType == 'piutang' ? -amount : amount,
-                                  ),
-                                });
-                              }
+                                if (document == null) {
+                                  batch.set(debtRef.doc(), data);
+                                } else {
+                                  batch.update(debtRef.doc(document.id), data);
+                                }
 
-                              if (document == null) {
-                                batch.set(debtRef.doc(), data);
-                              } else {
-                                batch.update(debtRef.doc(document.id), data);
-                              }
-
-                              await batch.commit();
-                              // ignore: use_build_context_synchronously
-                              Navigator.pop(context);
+                                await batch.commit();
+                                // ignore: use_build_context_synchronously
+                                Navigator.pop(context);
                               },
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: accentColor,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
                                 ),
@@ -1939,7 +2325,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
             maxHeight: MediaQuery.of(context).size.height * 0.85,
           ),
           padding: EdgeInsets.only(
-            top: 16, left: 20, right: 20, bottom: bottomInset + 24,
+            top: 16,
+            left: 20,
+            right: 20,
+            bottom: bottomInset + 24,
           ),
           decoration: BoxDecoration(
             color: sheetBg,
@@ -2004,22 +2393,22 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   DateTime? lastPaymentDate;
                   for (final doc in payments) {
                     final data = doc.data() as Map<String, dynamic>;
-                    final createdAt =
-                        (data['createdAt'] as Timestamp?)?.toDate();
+                    final createdAt = (data['createdAt'] as Timestamp?)
+                        ?.toDate();
                     if (createdAt == null) continue;
                     lastPaymentDate = createdAt;
                     break;
                   }
 
-                  final createdAt =
-                      (debtData['createdAt'] as Timestamp?)?.toDate();
-                  final baseDate = lastPaymentDate ?? createdAt ?? DateTime.now();
+                  final createdAt = (debtData['createdAt'] as Timestamp?)
+                      ?.toDate();
+                  final baseDate =
+                      lastPaymentDate ?? createdAt ?? DateTime.now();
 
                   int? estimateMonths;
                   DateTime? estimatedFinishMonth;
                   if (remaining > 0 && monthlyPayment > 0) {
-                    estimateMonths =
-                        (remaining / monthlyPayment).ceil();
+                    estimateMonths = (remaining / monthlyPayment).ceil();
                     estimatedFinishMonth = DateTime(
                       baseDate.year,
                       baseDate.month + estimateMonths,
@@ -2033,7 +2422,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
                           decoration: BoxDecoration(
                             color: isDark
                                 ? Colors.grey.shade900
@@ -2049,8 +2440,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 children: [
                                   Text(
                                     "Total Dibayar",
-                                    style:
-                                        TextStyle(fontSize: 11, color: hintColor),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: hintColor,
+                                    ),
                                   ),
                                   Text(
                                     _formatRupiah(totalPaid),
@@ -2077,8 +2470,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 children: [
                                   Text(
                                     "Sisa",
-                                    style:
-                                        TextStyle(fontSize: 11, color: hintColor),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: hintColor,
+                                    ),
                                   ),
                                   Text(
                                     _formatRupiah(remaining),
@@ -2114,25 +2509,34 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 Text(
                                   "Estimasi selesai: ${_monthYearLabel(estimatedFinishMonth)} ($estimateMonths bulan)",
                                   style: TextStyle(
-                                      fontSize: 11, color: hintColor),
+                                    fontSize: 11,
+                                    color: hintColor,
+                                  ),
                                 ),
                               if (lastPaymentDate != null)
                                 Text(
                                   "Pembayaran terakhir: ${DateFormat('dd MMM yyyy').format(lastPaymentDate)}",
                                   style: TextStyle(
-                                      fontSize: 11, color: hintColor),
+                                    fontSize: 11,
+                                    color: hintColor,
+                                  ),
                                 ),
-                              if (estimatedFinishMonth == null && monthlyPayment > 0)
+                              if (estimatedFinishMonth == null &&
+                                  monthlyPayment > 0)
                                 Text(
                                   "Estimasi selesai akan muncul setelah ada pembayaran.",
                                   style: TextStyle(
-                                      fontSize: 11, color: hintColor),
+                                    fontSize: 11,
+                                    color: hintColor,
+                                  ),
                                 ),
                               if (monthlyPayment <= 0)
                                 Text(
                                   "Estimasi selesai akan muncul setelah cicilan diisi.",
                                   style: TextStyle(
-                                      fontSize: 11, color: hintColor),
+                                    fontSize: 11,
+                                    color: hintColor,
+                                  ),
                                 ),
                             ],
                           ),
@@ -2156,27 +2560,30 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                               ),
                               itemBuilder: (context, index) {
                                 final paymentData =
-                                    payments[index].data() as Map<String, dynamic>;
+                                    payments[index].data()
+                                        as Map<String, dynamic>;
                                 final paymentAmount =
                                     (paymentData['amount'] ?? 0).toDouble();
                                 final walletName =
                                     paymentData['walletName'] ?? 'Dompet';
                                 final walletColor =
                                     (paymentData['walletColor'] as num?)
-                                            ?.toInt() ??
-                                        0xFF0F4C5C;
+                                        ?.toInt() ??
+                                    0xFF0F4C5C;
                                 final createdAt =
                                     (paymentData['createdAt'] as Timestamp?)
                                         ?.toDate();
 
                                 return ListTile(
                                   contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 2),
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
                                   leading: CircleAvatar(
                                     radius: 16,
-                                    backgroundColor:
-                                        // ignore: deprecated_member_use
-                                        Color(walletColor).withOpacity(0.15),
+                                    backgroundColor: Color(
+                                      walletColor,
+                                    ).withValues(alpha: 0.15),
                                     child: Container(
                                       width: 10,
                                       height: 10,
@@ -2196,20 +2603,70 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   ),
                                   subtitle: Text(
                                     createdAt != null
-                                        ? DateFormat('dd MMM yyyy, HH:mm')
-                                            .format(createdAt)
+                                        ? DateFormat(
+                                            'dd MMM yyyy, HH:mm',
+                                          ).format(createdAt)
                                         : '-',
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: hintColor,
                                     ),
                                   ),
-                                  trailing: Text(
-                                    walletName,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: hintColor,
-                                    ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        walletName,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: hintColor,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert, size: 18),
+                                        onSelected: (value) {
+                                          final paymentId = payments[index].id;
+                                          if (value == 'edit') {
+                                            _showEditInstallmentSheet(
+                                              debtId,
+                                              debtData,
+                                              paymentId,
+                                              paymentData,
+                                            );
+                                          } else if (value == 'delete') {
+                                            _deleteInstallmentPayment(
+                                              debtId,
+                                              debtData,
+                                              paymentId,
+                                              paymentData,
+                                            );
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'edit',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.edit, size: 18),
+                                                SizedBox(width: 8),
+                                                Text('Edit'),
+                                              ],
+                                            ),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete, size: 18, color: Colors.red),
+                                                SizedBox(width: 8),
+                                                Text('Hapus', style: TextStyle(color: Colors.red)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 );
                               },
@@ -2227,7 +2684,229 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     );
   }
 
-  void _toggleDebtStatus(String debtId, bool currentStatus, Map<String, dynamic> debtData) async {
+  Future<void> _deleteInstallmentPayment(
+    String debtId,
+    Map<String, dynamic> debtData,
+    String paymentId,
+    Map<String, dynamic> paymentData,
+  ) async {
+    final bool? confirm = await UIHelper.showConfirm(
+      context,
+      'Hapus Cicilan',
+      'Yakin ingin menghapus cicilan ini? Saldo dompet akan disesuaikan kembali.',
+    );
+
+    if (confirm != true) return;
+
+    final type = debtData['type'] ?? 'piutang';
+    final paymentAmount = (paymentData['amount'] ?? 0).toDouble();
+    final walletId = paymentData['walletId'];
+
+    final debtRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user!.uid)
+        .collection('debts')
+        .doc(debtId);
+
+    final paymentRef = debtRef.collection('payments').doc(paymentId);
+    
+    final batch = FirebaseFirestore.instance.batch();
+    
+    batch.delete(paymentRef);
+    batch.update(debtRef, {
+      'paidAmount': FieldValue.increment(-paymentAmount),
+    });
+
+    if (walletId != null) {
+      final walletRef = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('wallets')
+          .doc(walletId);
+      
+      batch.update(walletRef, {
+        'balance': FieldValue.increment(
+          type == 'piutang' ? -paymentAmount : paymentAmount,
+        ),
+      });
+    }
+
+    try {
+      await batch.commit();
+      if (mounted) {
+        UIHelper.showSuccess(context, 'Sukses', 'Cicilan berhasil dihapus.');
+      }
+    } catch (e) {
+      if (mounted) {
+        UIHelper.showError(context, 'Gagal menghapus cicilan: $e');
+      }
+    }
+  }
+
+  void _showEditInstallmentSheet(
+    String debtId,
+    Map<String, dynamic> debtData,
+    String paymentId,
+    Map<String, dynamic> paymentData,
+  ) {
+    final oldAmount = (paymentData['amount'] ?? 0).toDouble();
+    final TextEditingController amountController = TextEditingController(
+      text: NumberFormat('#,###', 'id_ID').format(oldAmount),
+    );
+    
+    DateTime selectedDate = paymentData['createdAt'] != null
+        ? (paymentData['createdAt'] as Timestamp).toDate()
+        : DateTime.now();
+
+    bool isLoading = false;
+    final type = debtData['type'] ?? 'piutang';
+    final walletId = paymentData['walletId'];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                top: 24,
+                left: 20,
+                right: 20,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Edit Cicilan',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [_currencyFormatter],
+                    decoration: const InputDecoration(
+                      labelText: 'Nominal Cicilan',
+                      prefixText: 'Rp ',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Tanggal'),
+                    subtitle: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    trailing: const Icon(Icons.calendar_today),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setSheetState(() {
+                          final now = paymentData['createdAt'] != null ? (paymentData['createdAt'] as Timestamp).toDate() : DateTime.now();
+                          selectedDate = DateTime(
+                            picked.year,
+                            picked.month,
+                            picked.day,
+                            now.hour,
+                            now.minute,
+                            now.second,
+                          );
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () async {
+                              final newAmountStr = amountController.text.replaceAll('.', '');
+                              if (newAmountStr.isEmpty) return;
+                              final newAmount = double.tryParse(newAmountStr) ?? 0;
+                              if (newAmount <= 0) return;
+                              
+                              setSheetState(() => isLoading = true);
+                              
+                              final amountDiff = newAmount - oldAmount;
+                              
+                              final debtRef = FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user!.uid)
+                                  .collection('debts')
+                                  .doc(debtId);
+                              final paymentRef = debtRef.collection('payments').doc(paymentId);
+                              
+                              final batch = FirebaseFirestore.instance.batch();
+                              
+                              batch.update(paymentRef, {
+                                'amount': newAmount,
+                                'createdAt': Timestamp.fromDate(selectedDate),
+                              });
+                              batch.update(debtRef, {
+                                'paidAmount': FieldValue.increment(amountDiff),
+                              });
+                              
+                              if (walletId != null) {
+                                final walletRef = FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(user!.uid)
+                                    .collection('wallets')
+                                    .doc(walletId);
+                                
+                                batch.update(walletRef, {
+                                  'balance': FieldValue.increment(
+                                    type == 'piutang' ? amountDiff : -amountDiff,
+                                  ),
+                                });
+                              }
+                              
+                              try {
+                                await batch.commit();
+                                if (context.mounted) Navigator.pop(context);
+                              } catch (e) {
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Gagal menyimpan: $e')),
+                                  );
+                                }
+                              } finally {
+                                setSheetState(() => isLoading = false);
+                              }
+                            },
+                      child: isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Simpan Perubahan'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _toggleDebtStatus(
+    String debtId,
+    bool currentStatus,
+    Map<String, dynamic> debtData,
+  ) async {
     final isPatungan = debtData['patunganId'] != null;
 
     if (isPatungan) {
@@ -2242,7 +2921,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     final paymentScheme = debtData['paymentScheme'] ?? 'sekali';
     final isCredit = paymentScheme == 'kredit';
     final monthlyPayment =
-      (debtData['monthlyPayment'] as num?)?.toDouble() ?? 0;
+        (debtData['monthlyPayment'] as num?)?.toDouble() ?? 0;
     final paidAmount = (debtData['paidAmount'] as num?)?.toDouble() ?? 0;
     double remainingAmount = amount - paidAmount;
     if (remainingAmount < 0) remainingAmount = 0;
@@ -2250,14 +2929,18 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
     if (currentStatus) {
       // === UNDO LUNAS ===
       // Gunakan paidWalletId (jika ada), fallback ke walletId asli
-      final paidWalletId = debtData['paidWalletId'] as String? ?? debtData['walletId'] as String?;
+      final paidWalletId =
+          debtData['paidWalletId'] as String? ??
+          debtData['walletId'] as String?;
       String paidWalletLabel = 'dompet terkait';
 
       if (paidWalletId != null) {
         try {
           final wDoc = await FirebaseFirestore.instance
-              .collection('users').doc(user!.uid)
-              .collection('wallets').doc(paidWalletId)
+              .collection('users')
+              .doc(user!.uid)
+              .collection('wallets')
+              .doc(paidWalletId)
               .get();
           if (wDoc.exists) {
             paidWalletLabel = (wDoc.data()?['name'] ?? 'Dompet') as String;
@@ -2297,8 +2980,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text("Batal",
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                "Batal",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -2308,9 +2993,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text("Batalkan",
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text(
+                "Batalkan",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -2322,8 +3011,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         final batch = FirebaseFirestore.instance.batch();
 
         final debtRef = FirebaseFirestore.instance
-            .collection('users').doc(user!.uid)
-            .collection('debts').doc(debtId);
+            .collection('users')
+            .doc(user!.uid)
+            .collection('debts')
+            .doc(debtId);
 
         batch.update(debtRef, {
           'isPaid': false,
@@ -2335,8 +3026,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         // Reverse wallet balance
         if (paidWalletId != null) {
           final walletRef = FirebaseFirestore.instance
-              .collection('users').doc(user!.uid)
-              .collection('wallets').doc(paidWalletId);
+              .collection('users')
+              .doc(user!.uid)
+              .collection('wallets')
+              .doc(paidWalletId);
           // Undo Lunas: Piutang → money goes out (-); Utang → money received (+)
           batch.update(walletRef, {
             'balance': FieldValue.increment(
@@ -2383,7 +3076,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
       }
 
       final originalWalletId = debtData['walletId'] as String?;
-      String selectedWalletId = (originalWalletId != null &&
+      String selectedWalletId =
+          (originalWalletId != null &&
               wallets.any((w) => w.id == originalWalletId))
           ? originalWalletId
           : wallets.first.id;
@@ -2398,7 +3092,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 // Lookup manual: menghindari ListBase.firstWhere yang
                 // conflict dengan runtime type _JsonQueryDocumentSnapshot.
                 late final QueryDocumentSnapshot<Map<String, dynamic>>
-                    selectedWallet;
+                selectedWallet;
                 for (final w in wallets) {
                   if (w.id == selectedWalletId) {
                     selectedWallet = w;
@@ -2443,12 +3137,14 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            suffixIcon:
-                                const Icon(Icons.calendar_today_outlined),
+                            suffixIcon: const Icon(
+                              Icons.calendar_today_outlined,
+                            ),
                           ),
                           child: Text(
-                            DateFormat('dd MMM yyyy')
-                                .format(selectedPaymentDate),
+                            DateFormat(
+                              'dd MMM yyyy',
+                            ).format(selectedPaymentDate),
                           ),
                         ),
                       ),
@@ -2487,7 +3183,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                       height: 12,
                                       decoration: BoxDecoration(
                                         color: Color(
-                                            (wData['color'] as num?)?.toInt() ?? 0xFF0F4C5C),
+                                          (wData['color'] as num?)?.toInt() ??
+                                              0xFF0F4C5C,
+                                        ),
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -2512,8 +3210,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             }).toList(),
                             onChanged: (val) {
                               if (val != null) {
-                                setDialogState(
-                                    () => selectedWalletId = val);
+                                setDialogState(() => selectedWalletId = val);
                               }
                             },
                           ),
@@ -2533,8 +3230,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, null),
-                      child: const Text("Batal",
-                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        "Batal",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                     ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, {
@@ -2547,10 +3246,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text("Lunas",
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold)),
+                      child: const Text(
+                        "Lunas",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 );
@@ -2568,8 +3270,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           final batch = FirebaseFirestore.instance.batch();
 
           final debtRef = FirebaseFirestore.instance
-              .collection('users').doc(user!.uid)
-              .collection('debts').doc(debtId);
+              .collection('users')
+              .doc(user!.uid)
+              .collection('debts')
+              .doc(debtId);
 
           batch.update(debtRef, {
             'isPaid': true,
@@ -2579,8 +3283,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
           // Adjust chosen wallet balance
           final walletRef = FirebaseFirestore.instance
-              .collection('users').doc(user!.uid)
-              .collection('wallets').doc(paidWalletId);
+              .collection('users')
+              .doc(user!.uid)
+              .collection('wallets')
+              .doc(paidWalletId);
           // Piutang → money comes back (+); Utang → money paid back (-)
           batch.update(walletRef, {
             'balance': FieldValue.increment(
@@ -2612,10 +3318,12 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         return;
       }
 
-      final double suggestedPayment =
-          monthlyPayment > 0 ? monthlyPayment : remainingAmount;
-      final double initialPayment =
-          suggestedPayment > remainingAmount ? remainingAmount : suggestedPayment;
+      final double suggestedPayment = monthlyPayment > 0
+          ? monthlyPayment
+          : remainingAmount;
+      final double initialPayment = suggestedPayment > remainingAmount
+          ? remainingAmount
+          : suggestedPayment;
       final paymentController = TextEditingController(
         text: NumberFormat('#,###', 'id_ID').format(initialPayment.toInt()),
       );
@@ -2629,7 +3337,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               // Lookup manual: menghindari ListBase.firstWhere yang
               // conflict dengan runtime type _JsonQueryDocumentSnapshot.
               late final QueryDocumentSnapshot<Map<String, dynamic>>
-                  selectedWallet;
+              selectedWallet;
               for (final w in wallets) {
                 if (w.id == selectedWalletId) {
                   selectedWallet = w;
@@ -2657,18 +3365,24 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                     const SizedBox(height: 8),
                     Text(
                       "Sisa: ${_formatRupiah(remainingAmount)}",
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                     if (monthlyPayment > 0)
                       Text(
                         "Cicilan/bulan: ${_formatRupiah(monthlyPayment)}",
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: paymentController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [ThousandsFormatter()],
+                      inputFormatters: [_currencyFormatter],
                       decoration: const InputDecoration(
                         labelText: "Nominal Bayar",
                         prefixText: 'Rp ',
@@ -2695,12 +3409,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          suffixIcon:
-                              const Icon(Icons.calendar_today_outlined),
+                          suffixIcon: const Icon(Icons.calendar_today_outlined),
                         ),
                         child: Text(
-                          DateFormat('dd MMM yyyy')
-                              .format(selectedPaymentDate),
+                          DateFormat('dd MMM yyyy').format(selectedPaymentDate),
                         ),
                       ),
                     ),
@@ -2739,7 +3451,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                     height: 12,
                                     decoration: BoxDecoration(
                                       color: Color(
-                                          (wData['color'] as num?)?.toInt() ?? 0xFF0F4C5C),
+                                        (wData['color'] as num?)?.toInt() ??
+                                            0xFF0F4C5C,
+                                      ),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -2784,28 +3498,35 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, null),
-                    child: const Text("Batal",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "Batal",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      final paymentAmount =
-                          _parseCurrency(paymentController.text);
+                      final paymentAmount = _parseCurrency(
+                        paymentController.text,
+                      );
                       if (paymentAmount <= 0) {
                         UIHelper.showError(
-                            context, "Nominal harus lebih dari 0.");
+                          context,
+                          "Nominal harus lebih dari 0.",
+                        );
                         return;
                       }
                       if (paymentAmount > remainingAmount) {
                         UIHelper.showError(
-                            context, "Nominal melebihi sisa pembayaran.");
+                          context,
+                          "Nominal melebihi sisa pembayaran.",
+                        );
                         return;
                       }
                       final walletName =
                           (selectedWalletData['name'] ?? 'Dompet') as String;
                       final walletColor =
                           (selectedWalletData['color'] as num?)?.toInt() ??
-                              0xFF0F4C5C;
+                          0xFF0F4C5C;
                       Navigator.pop(ctx, {
                         'walletId': selectedWalletId,
                         'amount': paymentAmount,
@@ -2820,10 +3541,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text("Bayar",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "Bayar",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -2836,10 +3560,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
       final paymentAmount = (confirmed['amount'] as num).toDouble();
       final paidWalletId = confirmed['walletId'] as String;
-        final walletName = confirmed['walletName'] as String? ?? 'Dompet';
-        final walletColor = (confirmed['walletColor'] as num?)?.toInt() ??
-          0xFF0F4C5C;
-        final paymentDate = confirmed['paymentDate'] as DateTime;
+      final walletName = confirmed['walletName'] as String? ?? 'Dompet';
+      final walletColor =
+          (confirmed['walletColor'] as num?)?.toInt() ?? 0xFF0F4C5C;
+      final paymentDate = confirmed['paymentDate'] as DateTime;
       final newPaidAmount = paidAmount + paymentAmount;
       final newIsPaid = newPaidAmount >= amount;
 
@@ -2847,8 +3571,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         final batch = FirebaseFirestore.instance.batch();
 
         final debtRef = FirebaseFirestore.instance
-            .collection('users').doc(user!.uid)
-            .collection('debts').doc(debtId);
+            .collection('users')
+            .doc(user!.uid)
+            .collection('debts')
+            .doc(debtId);
 
         final Map<String, dynamic> updateData = {
           'paidAmount': newPaidAmount,
@@ -2872,8 +3598,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
         });
 
         final walletRef = FirebaseFirestore.instance
-            .collection('users').doc(user!.uid)
-            .collection('wallets').doc(paidWalletId);
+            .collection('users')
+            .doc(user!.uid)
+            .collection('wallets')
+            .doc(paidWalletId);
         batch.update(walletRef, {
           'balance': FieldValue.increment(
             type == 'piutang' ? paymentAmount : -paymentAmount,
@@ -2950,8 +3678,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text("Batal",
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text(
+                "Batal",
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -2961,9 +3691,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text("Batalkan",
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text(
+                "Batalkan",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -3013,7 +3747,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
       }
 
       final originalWalletId = debtData['walletId'] as String?;
-      String selectedWalletId = (originalWalletId != null &&
+      String selectedWalletId =
+          (originalWalletId != null &&
               wallets.any((w) => w.id == originalWalletId))
           ? originalWalletId
           : wallets.first.id;
@@ -3026,7 +3761,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               // Lookup manual: menghindari ListBase.firstWhere yang
               // conflict dengan runtime type _JsonQueryDocumentSnapshot.
               late final QueryDocumentSnapshot<Map<String, dynamic>>
-                  selectedWallet;
+              selectedWallet;
               for (final w in wallets) {
                 if (w.id == selectedWalletId) {
                   selectedWallet = w;
@@ -3084,7 +3819,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                     height: 12,
                                     decoration: BoxDecoration(
                                       color: Color(
-                                          wData['color'] ?? 0xFF0F4C5C),
+                                        wData['color'] ?? 0xFF0F4C5C,
+                                      ),
                                       shape: BoxShape.circle,
                                     ),
                                   ),
@@ -3109,8 +3845,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                           }).toList(),
                           onChanged: (val) {
                             if (val != null) {
-                              setDialogState(
-                                  () => selectedWalletId = val);
+                              setDialogState(() => selectedWalletId = val);
                             }
                           },
                         ),
@@ -3130,8 +3865,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(ctx, null),
-                    child: const Text("Batal",
-                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "Batal",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.pop(ctx, selectedWalletId),
@@ -3141,10 +3878,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text("Lunas",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      "Lunas",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               );
@@ -3182,7 +3922,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
   void _deleteDebt(String debtId, Map<String, dynamic> debtData) {
     // Cegah hapus untuk piutang dari Patungan
     if (debtData['patunganId'] != null) {
-      UIHelper.showError(context, "Piutang ini terhubung dengan Patungan. Hapus dari menu Patungan.");
+      UIHelper.showError(
+        context,
+        "Piutang ini terhubung dengan Patungan. Hapus dari menu Patungan.",
+      );
       return;
     }
     showDialog(
@@ -3217,8 +3960,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
 
                 if (walletId != null && !isPaid) {
                   final walletRef = FirebaseFirestore.instance
-                      .collection('users').doc(user!.uid)
-                      .collection('wallets').doc(walletId);
+                      .collection('users')
+                      .doc(user!.uid)
+                      .collection('wallets')
+                      .doc(walletId);
                   // Reverse: piutang was -, so add back; utang was +, so subtract back
                   batch.update(walletRef, {
                     'balance': FieldValue.increment(
@@ -3231,9 +3976,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                 // ignore: use_build_context_synchronously
                 Navigator.pop(context);
               },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
               child: const Text("Hapus", style: TextStyle(color: Colors.white)),
             ),
           ],
@@ -3247,12 +3990,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
       children: [
         Expanded(
           child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(user?.uid)
-                .collection('debts')
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
+            stream: _debtStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -3262,7 +4000,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.account_balance, size: 60, color: Colors.grey.shade300),
+                      Icon(
+                        Icons.account_balance,
+                        size: 60,
+                        color: Colors.grey.shade300,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         "Belum ada data piutang/utang.",
@@ -3278,7 +4020,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               // Tampilkan histori bulan ini saja, tetapi item belum lunas tetap tampil
               // walaupun dibuat di bulan sebelumnya.
               final List<QueryDocumentSnapshot> docs = allDocs.where((doc) {
-                final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+                final Map<String, dynamic> data =
+                    doc.data() as Map<String, dynamic>;
                 final bool isPaid = data['isPaid'] == true;
                 final Timestamp? createdAtTs = data['createdAt'] as Timestamp?;
 
@@ -3296,7 +4039,11 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.account_balance, size: 60, color: Colors.grey.shade300),
+                      Icon(
+                        Icons.account_balance,
+                        size: 60,
+                        color: Colors.grey.shade300,
+                      ),
                       const SizedBox(height: 12),
                       Text(
                         "Belum ada data piutang/utang untuk ${_monthYearLabel(_debtFilterMonth)}.",
@@ -3307,7 +4054,7 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   ),
                 );
               }
-              
+
               // Sort: Belum Lunas first, then Lunas
               docs.sort((a, b) {
                 final aData = a.data() as Map<String, dynamic>;
@@ -3345,10 +4092,16 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
               return Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 4,
+                    ),
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         // ignore: deprecated_member_use
                         color: const Color(0xFF0F4C5C).withOpacity(0.12),
@@ -3383,14 +4136,23 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                   ),
                   // Summary
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 4,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text("Piutang Aktif", style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(
+                              "Piutang Aktif",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
                             Text(
                               _formatRupiah(totalPiutang),
                               style: const TextStyle(
@@ -3404,7 +4166,13 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
-                            Text("Utang Aktif", style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(
+                              "Utang Aktif",
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
                             Text(
                               _formatRupiah(totalUtang),
                               style: const TextStyle(
@@ -3432,9 +4200,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                         final isCredit = paymentScheme == 'kredit';
                         double amount = (data['amount'] ?? 0).toDouble();
                         final monthlyPayment =
-                          (data['monthlyPayment'] as num?)?.toDouble() ?? 0;
+                            (data['monthlyPayment'] as num?)?.toDouble() ?? 0;
                         double paidAmount =
-                          (data['paidAmount'] as num?)?.toDouble() ?? 0;
+                            (data['paidAmount'] as num?)?.toDouble() ?? 0;
                         if (isPaid && paidAmount == 0 && amount > 0) {
                           paidAmount = amount;
                         }
@@ -3449,7 +4217,9 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                             ? (data['dueDate'] as Timestamp).toDate()
                             : null;
 
-                        Color typeColor = isPiutang ? const Color(0xFF00897B) : Colors.red;
+                        Color typeColor = isPiutang
+                            ? const Color(0xFF00897B)
+                            : Colors.red;
                         IconData typeIcon = isPiutang
                             ? Icons.arrow_downward
                             : Icons.arrow_upward;
@@ -3483,12 +4253,17 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                         color: typeColor.withOpacity(0.1),
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Icon(typeIcon, color: typeColor, size: 18),
+                                      child: Icon(
+                                        typeIcon,
+                                        color: typeColor,
+                                        size: 18,
+                                      ),
                                     ),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             personName,
@@ -3496,34 +4271,48 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                               fontWeight: FontWeight.bold,
                                               fontSize: 15,
                                               color: textColor,
-                                              decoration: isPaid ? TextDecoration.lineThrough : null,
+                                              decoration: isPaid
+                                                  ? TextDecoration.lineThrough
+                                                  : null,
                                             ),
                                           ),
                                           const SizedBox(height: 2),
                                           Row(
                                             children: [
                                               Text(
-                                                isPiutang ? "Piutang (meminjamkan)" : "Utang (meminjam)",
+                                                isPiutang
+                                                    ? "Piutang (meminjamkan)"
+                                                    : "Utang (meminjam)",
                                                 style: TextStyle(
                                                   fontSize: 11,
                                                   color: typeColor,
                                                   fontWeight: FontWeight.w600,
                                                 ),
                                               ),
-                                              if (data['patunganId'] != null) ...[
+                                              if (data['patunganId'] !=
+                                                  null) ...[
                                                 const SizedBox(width: 6),
                                                 Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        horizontal: 5,
+                                                        vertical: 1,
+                                                      ),
                                                   decoration: BoxDecoration(
-                                                    // ignore: deprecated_member_use
-                                                    color: const Color(0xFF0F4C5C).withOpacity(0.1),
-                                                    borderRadius: BorderRadius.circular(6),
+                                                    color: const Color(
+                                                      0xFF0F4C5C,
+                                                    ).withValues(alpha: 0.1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
                                                   ),
                                                   child: const Text(
                                                     "Patungan",
                                                     style: TextStyle(
                                                       fontSize: 8,
-                                                      fontWeight: FontWeight.bold,
+                                                      fontWeight:
+                                                          FontWeight.bold,
                                                       color: Color(0xFF0F4C5C),
                                                     ),
                                                   ),
@@ -3535,7 +4324,8 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                       ),
                                     ),
                                     Column(
-                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.end,
                                       children: [
                                         Text(
                                           _formatRupiah(amount),
@@ -3543,26 +4333,37 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                             fontWeight: FontWeight.bold,
                                             fontSize: 15,
                                             color: typeColor,
-                                            decoration: isPaid ? TextDecoration.lineThrough : null,
+                                            decoration: isPaid
+                                                ? TextDecoration.lineThrough
+                                                : null,
                                           ),
                                         ),
                                         const SizedBox(height: 4),
                                         Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 3,
+                                          ),
                                           decoration: BoxDecoration(
                                             color: isPaid
                                                 // ignore: deprecated_member_use
                                                 ? Colors.green.withOpacity(0.1)
                                                 // ignore: deprecated_member_use
-                                                : Colors.orange.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(10),
+                                                : Colors.orange.withOpacity(
+                                                    0.1,
+                                                  ),
+                                            borderRadius: BorderRadius.circular(
+                                              10,
+                                            ),
                                           ),
                                           child: Text(
                                             isPaid ? "Lunas" : "Belum Lunas",
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
-                                              color: isPaid ? Colors.green : Colors.orange,
+                                              color: isPaid
+                                                  ? Colors.green
+                                                  : Colors.orange,
                                             ),
                                           ),
                                         ),
@@ -3574,26 +4375,47 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                 // Date info row
                                 Row(
                                   children: [
-                                    Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                                    Icon(
+                                      Icons.calendar_today,
+                                      size: 12,
+                                      color: Colors.grey.shade500,
+                                    ),
                                     const SizedBox(width: 4),
                                     Text(
                                       createdAt != null
-                                          ? DateFormat('dd MMM yyyy').format(createdAt)
+                                          ? DateFormat(
+                                              'dd MMM yyyy',
+                                            ).format(createdAt)
                                           : '-',
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.grey.shade500,
+                                      ),
                                     ),
                                     if (dueDate != null) ...[
                                       const SizedBox(width: 12),
-                                      Icon(Icons.timer_outlined, size: 12, color: Colors.grey.shade500),
+                                      Icon(
+                                        Icons.timer_outlined,
+                                        size: 12,
+                                        color: Colors.grey.shade500,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         "Jatuh tempo: ${DateFormat('dd MMM yyyy').format(dueDate)}",
                                         style: TextStyle(
                                           fontSize: 11,
-                                          color: !isPaid && dueDate.isBefore(DateTime.now())
+                                          color:
+                                              !isPaid &&
+                                                  dueDate.isBefore(
+                                                    DateTime.now(),
+                                                  )
                                               ? Colors.red
                                               : Colors.grey.shade500,
-                                          fontWeight: !isPaid && dueDate.isBefore(DateTime.now())
+                                          fontWeight:
+                                              !isPaid &&
+                                                  dueDate.isBefore(
+                                                    DateTime.now(),
+                                                  )
                                               ? FontWeight.bold
                                               : FontWeight.normal,
                                         ),
@@ -3605,24 +4427,32 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      Icon(Icons.payments_outlined,
-                                          size: 12, color: Colors.grey.shade500),
+                                      Icon(
+                                        Icons.payments_outlined,
+                                        size: 12,
+                                        color: Colors.grey.shade500,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         "Cicilan: ${_formatRupiah(monthlyPayment)} / bulan",
                                         style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey.shade600),
+                                          fontSize: 11,
+                                          color: Colors.grey.shade600,
+                                        ),
                                       ),
                                       const SizedBox(width: 10),
-                                      Icon(Icons.hourglass_bottom,
-                                          size: 12, color: Colors.grey.shade500),
+                                      Icon(
+                                        Icons.hourglass_bottom,
+                                        size: 12,
+                                        color: Colors.grey.shade500,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         "Sisa: ${_formatRupiah(remainingAmount)}",
                                         style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.grey.shade600),
+                                          fontSize: 11,
+                                          color: Colors.grey.shade600,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -3631,7 +4461,10 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   const SizedBox(height: 4),
                                   Text(
                                     note,
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade600,
+                                    ),
                                   ),
                                 ],
                                 const Divider(height: 16),
@@ -3640,13 +4473,25 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
                                     GestureDetector(
-                                      onTap: () => _toggleDebtStatus(doc.id, isPaid, data),
+                                      onTap: () => _toggleDebtStatus(
+                                        doc.id,
+                                        isPaid,
+                                        data,
+                                      ),
                                       child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 5,
+                                        ),
                                         decoration: BoxDecoration(
-                                          // ignore: deprecated_member_use
-                                          color: (isPaid ? Colors.orange : Colors.green).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(8),
+                                          color:
+                                              (isPaid
+                                                      ? Colors.orange
+                                                      : Colors.green)
+                                                  .withValues(alpha: 0.1),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
                                         ),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -3655,21 +4500,25 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                               isPaid
                                                   ? Icons.undo
                                                   : isCredit
-                                                      ? Icons.payments_outlined
-                                                      : Icons.check_circle_outline,
+                                                  ? Icons.payments_outlined
+                                                  : Icons.check_circle_outline,
                                               size: 14,
-                                              color: isPaid ? Colors.orange : Colors.green,
+                                              color: isPaid
+                                                  ? Colors.orange
+                                                  : Colors.green,
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
                                               isPaid
                                                   ? "Belum Lunas"
                                                   : isCredit
-                                                      ? "Bayar Cicilan"
-                                                      : "Tandai Lunas",
+                                                  ? "Bayar Cicilan"
+                                                  : "Tandai Lunas",
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: isPaid ? Colors.orange : Colors.green,
+                                                color: isPaid
+                                                    ? Colors.orange
+                                                    : Colors.green,
                                                 fontWeight: FontWeight.bold,
                                               ),
                                             ),
@@ -3680,16 +4529,23 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                     if (isCredit) ...[
                                       const SizedBox(width: 8),
                                       GestureDetector(
-                                        onTap: () =>
-                                            _showDebtPaymentDetail(doc.id, data),
+                                        onTap: () => _showDebtPaymentDetail(
+                                          doc.id,
+                                          data,
+                                        ),
                                         child: Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 5),
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
                                           decoration: BoxDecoration(
                                             // ignore: deprecated_member_use
-                                            color: primaryColor.withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
+                                            color: primaryColor.withOpacity(
+                                              0.1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              8,
+                                            ),
                                           ),
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
@@ -3716,12 +4572,20 @@ class _MyWalletScreenState extends State<MyWalletScreen> {
                                     const SizedBox(width: 8),
                                     GestureDetector(
                                       onTap: () => _showDebtForm(document: doc),
-                                      child: Icon(Icons.edit, size: 18, color: Colors.grey.shade400),
+                                      child: Icon(
+                                        Icons.edit,
+                                        size: 18,
+                                        color: Colors.grey.shade400,
+                                      ),
                                     ),
                                     const SizedBox(width: 10),
                                     GestureDetector(
                                       onTap: () => _deleteDebt(doc.id, data),
-                                      child: Icon(Icons.delete, size: 18, color: Colors.grey.shade400),
+                                      child: Icon(
+                                        Icons.delete,
+                                        size: 18,
+                                        color: Colors.grey.shade400,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -3770,46 +4634,67 @@ class _WalletPieChartState extends State<_WalletPieChart> {
     return Stack(
       alignment: Alignment.center,
       children: [
-        PieChart(
-          PieChartData(
-            pieTouchData: PieTouchData(
-              touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                setState(() {
-                  if (!event.isInterestedForInteractions ||
-                      pieTouchResponse == null ||
-                      pieTouchResponse.touchedSection == null) {
-                    _touchedIndex = -1;
-                    return;
-                  }
-                  _touchedIndex =
-                      pieTouchResponse.touchedSection!.touchedSectionIndex;
-                });
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 1500),
+          curve: Curves.easeOutQuart,
+          builder: (context, value, child) {
+            return ShaderMask(
+              shaderCallback: (rect) {
+                return SweepGradient(
+                  startAngle: 0.0,
+                  endAngle: 2 * 3.141592653589793,
+                  stops: [value, value],
+                  colors: const [Colors.black, Colors.transparent],
+                  transform: const GradientRotation(-3.141592653589793 / 2),
+                ).createShader(rect);
               },
-            ),
-            borderData: FlBorderData(show: false),
-            sectionsSpace: 2,
-            centerSpaceRadius: 50,
-            sections: List.generate(widget.chartData.length, (i) {
-              final isTouched = i == _touchedIndex;
-              final fontSize = isTouched ? 16.0 : 12.0;
-              final radius = isTouched ? 60.0 : 50.0;
-              double val = widget.chartData[i]['value'];
+              blendMode: BlendMode.dstIn,
+              child: child,
+            );
+          },
+          child: PieChart(
+            PieChartData(
+              pieTouchData: PieTouchData(
+                touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions ||
+                        pieTouchResponse == null ||
+                        pieTouchResponse.touchedSection == null) {
+                      _touchedIndex = -1;
+                      return;
+                    }
+                    _touchedIndex =
+                        pieTouchResponse.touchedSection!.touchedSectionIndex;
+                  });
+                },
+              ),
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 2,
+              centerSpaceRadius: 50,
+              startDegreeOffset: -90,
+              sections: List.generate(widget.chartData.length, (i) {
+                final isTouched = i == _touchedIndex;
+                final fontSize = isTouched ? 16.0 : 12.0;
+                final radius = isTouched ? 60.0 : 50.0;
+                double val = widget.chartData[i]['value'];
 
-              return PieChartSectionData(
-                color: widget.chartData[i]['color'],
-                value: val,
-                title: isTouched
-                    ? _formatRupiah(val)
-                    : '${((val / widget.totalAssets) * 100).toStringAsFixed(0)}%',
-                radius: radius,
-                titleStyle: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  shadows: const [Shadow(color: Colors.black26, blurRadius: 2)],
-                ),
-              );
-            }),
+                return PieChartSectionData(
+                  color: widget.chartData[i]['color'],
+                  value: val,
+                  title: isTouched
+                      ? _formatRupiah(val)
+                      : '${((val / widget.totalAssets) * 100).toStringAsFixed(0)}%',
+                  radius: radius,
+                  titleStyle: TextStyle(
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: const [Shadow(color: Colors.black26, blurRadius: 2)],
+                  ),
+                );
+              }),
+            ),
           ),
         ),
         Column(
@@ -3831,5 +4716,25 @@ class _WalletPieChartState extends State<_WalletPieChart> {
         ),
       ],
     );
+  }
+}
+
+class KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+  const KeepAliveWrapper({super.key, required this.child});
+
+  @override
+  State<KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

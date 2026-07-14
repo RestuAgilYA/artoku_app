@@ -12,12 +12,14 @@ class CsvHelper {
     List<QueryDocumentSnapshot> transactionDocs,
     List<QueryDocumentSnapshot> transferDocs, {
     List<QueryDocumentSnapshot>? debtDocs,
+    List<QueryDocumentSnapshot>? goalDocs,
+    List<QueryDocumentSnapshot>? patunganDocs,
   }) async {
     final range = DateTimeRange(
       start: DateTime(selectedMonth.year, selectedMonth.month, 1),
       end: DateTime(selectedMonth.year, selectedMonth.month + 1, 0, 23, 59, 59),
     );
-    return generateReport(range, transactionDocs, transferDocs, debtDocs: debtDocs);
+    return generateReport(range, transactionDocs, transferDocs, debtDocs: debtDocs, goalDocs: goalDocs, patunganDocs: patunganDocs);
   }
 
   /// Generate dan share CSV untuk laporan dengan date range
@@ -26,6 +28,8 @@ class CsvHelper {
     List<QueryDocumentSnapshot> transactionDocs,
     List<QueryDocumentSnapshot> transferDocs, {
     List<QueryDocumentSnapshot>? debtDocs,
+    List<QueryDocumentSnapshot>? goalDocs,
+    List<QueryDocumentSnapshot>? patunganDocs,
   }) async {
     final periodLabel = '${_formatDate(dateRange.start)} - ${_formatDate(dateRange.end)}';
 
@@ -133,10 +137,14 @@ class CsvHelper {
     // 5b. Tambah data piutang/utang jika ada
     final debts = (debtDocs ?? []).where((doc) {
       final data = doc.data() as Map<String, dynamic>;
-      if (data['createdAt'] == null) return false;
+      final isPaid = data['isPaid'] == true;
+      if (data['createdAt'] == null) return !isPaid; // Kalau ga ada tanggal, tampilkan kalau masih aktif
       final date = (data['createdAt'] as Timestamp).toDate();
-      return !date.isBefore(dateRange.start) && 
+      
+      final isInRange = !date.isBefore(dateRange.start) && 
              !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+             
+      return isInRange || !isPaid;
     }).toList();
 
     if (debts.isNotEmpty) {
@@ -164,12 +172,90 @@ class CsvHelper {
       }
     }
 
+    // 5c. Tambah data target tabungan jika ada
+    final goals = (goalDocs ?? []).where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final status = data['status'] as String? ?? 'active';
+      final isActive = status == 'active';
+      
+      if (data['createdAt'] == null) return isActive;
+      final date = (data['createdAt'] as Timestamp).toDate();
+      
+      final isInRange = !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+             
+      return isInRange || isActive;
+    }).toList();
+
+    if (goals.isNotEmpty) {
+      transactionRows.addAll([
+        [],
+        ['--- TARGET TABUNGAN ---'],
+        ['Catatan: Alokasi tabungan tidak dihitung sebagai pengeluaran utama'],
+        ['Tanggal Dibuat', 'Nama Target', 'Target (Rp)', 'Terkumpul (Rp)', 'Status'],
+      ]);
+
+      for (var doc in goals) {
+        final data = doc.data() as Map<String, dynamic>;
+        final date = (data['createdAt'] as Timestamp).toDate();
+        final targetAmount = (data['targetAmount'] ?? 0).toDouble();
+        final currentAmount = (data['currentAmount'] ?? 0).toDouble();
+        final status = data['status'] == 'completed' ? 'Tercapai' : 'Proses';
+
+        transactionRows.add([
+          _formatDate(date),
+          data['name'] ?? '-',
+          targetAmount.toStringAsFixed(0),
+          currentAmount.toStringAsFixed(0),
+          status,
+        ]);
+      }
+    }
+
+    // 5d. Tambah data patungan jika ada
+    final patungans = (patunganDocs ?? []).where((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      final isCompleted = data['isCompleted'] == true;
+      
+      if (data['createdAt'] == null) return !isCompleted;
+      final date = (data['createdAt'] as Timestamp).toDate();
+      
+      final isInRange = !date.isBefore(dateRange.start) && 
+             !date.isAfter(DateTime(dateRange.end.year, dateRange.end.month, dateRange.end.day, 23, 59, 59));
+             
+      return isInRange || !isCompleted;
+    }).toList();
+
+    if (patungans.isNotEmpty) {
+      transactionRows.addAll([
+        [],
+        ['--- DAFTAR PATUNGAN ---'],
+        ['Tanggal Dibuat', 'Nama Patungan', 'Total (Rp)', 'Status'],
+      ]);
+
+      for (var doc in patungans) {
+        final data = doc.data() as Map<String, dynamic>;
+        final date = (data['createdAt'] as Timestamp).toDate();
+        final totalAmount = (data['totalAmount'] ?? 0).toDouble();
+        final status = data['isCompleted'] == true ? 'Selesai' : 'Aktif';
+
+        transactionRows.add([
+          _formatDate(date),
+          data['title'] ?? '-',
+          totalAmount.toStringAsFixed(0),
+          status,
+        ]);
+      }
+    }
+
     // 6. Convert ke CSV string
     String csvData = const ListToCsvConverter().convert(transactionRows);
 
     // 7. Simpan ke file
     final directory = await getTemporaryDirectory();
-    final fileName = 'ArtoKu_Laporan_${_formatDate(dateRange.start)}_${_formatDate(dateRange.end)}.csv';
+    final dateStartStr = _formatDate(dateRange.start).replaceAll('/', '-');
+    final dateEndStr = _formatDate(dateRange.end).replaceAll('/', '-');
+    final fileName = 'ArtoKu_Laporan_${dateStartStr}_$dateEndStr.csv';
     final file = File('${directory.path}/$fileName');
     await file.writeAsString(csvData);
 

@@ -268,14 +268,19 @@ class GoalScreen extends StatelessWidget {
             const SizedBox(height: 15),
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: totalTarget > 0 ? (totalSaved / totalTarget).clamp(0, 1) : 0,
-                minHeight: 8,
-                // ignore: deprecated_member_use
-                backgroundColor: Colors.white.withOpacity(0.2),
-                valueColor: const AlwaysStoppedAnimation<Color>(
-                  Color(0xFF69F0AE),
-                ),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: totalTarget > 0 ? (totalSaved / totalTarget).clamp(0, 1) : 0),
+                duration: const Duration(milliseconds: 1000),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, _) {
+                  return LinearProgressIndicator(
+                    value: value,
+                    minHeight: 8,
+                    // ignore: deprecated_member_use
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.greenAccent),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 8),
@@ -470,11 +475,18 @@ class _GoalCard extends StatelessWidget {
             // Progress bar
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: LinearProgressIndicator(
-                value: goal.progress,
-                minHeight: 8,
-                backgroundColor: Colors.grey.shade200,
-                valueColor: AlwaysStoppedAnimation<Color>(statusClr),
+              child: TweenAnimationBuilder<double>(
+                tween: Tween<double>(begin: 0, end: goal.progress),
+                duration: const Duration(milliseconds: 1000),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, _) {
+                  return LinearProgressIndicator(
+                    value: value,
+                    minHeight: 8,
+                    backgroundColor: Colors.grey.shade200,
+                    valueColor: AlwaysStoppedAnimation<Color>(statusClr),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 10),

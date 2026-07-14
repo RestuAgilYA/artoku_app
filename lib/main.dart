@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:clarity_flutter/clarity_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'package:artoku_app/features/auth/presentation/welcome_screen.dart';
@@ -17,6 +18,7 @@ bool _themeChanged = false;
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+
   await NotificationService().init();
   await RemoteConfigService().init();
 
@@ -51,7 +53,7 @@ void main() async {
     final prefs = await SharedPreferences.getInstance();
     // Baca key 'isDarkMode', jika null anggap saja false (Light mode)
     final bool isDarkMode = prefs.getBool('isDarkMode') ?? false;
-  
+
     // Update value notifier sesuai data yang disimpan
     themeNotifier.value = isDarkMode ? ThemeMode.dark : ThemeMode.light;
     // ignore: avoid_print
@@ -61,7 +63,17 @@ void main() async {
     print("Gagal memuat tema: $e");
   }
 
-  runApp(const MyApp());
+  // Konfigurasi Microsoft Clarity
+  final clarityConfig = ClarityConfig(
+    projectId: "xm7n1mqdh8", // Ganti dengan Project ID Anda dari dasbor Clarity
+  );
+
+  runApp(
+    ClarityWidget(
+      app: const MyApp(),
+      clarityConfig: clarityConfig,
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -116,7 +128,7 @@ class MyApp extends StatelessWidget {
               if (snapshot.hasData) {
                 return _AppLockWrapper(child: DashboardScreen());
               }
-              return const WelcomeScreen();
+              return const _GuestUpdateWrapper(child: WelcomeScreen());
             },
           ),
         );
@@ -146,7 +158,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    themeNotifier.addListener(_onThemeChanged); 
+    themeNotifier.addListener(_onThemeChanged);
     _checkAppLockStatus();
   }
 
@@ -154,7 +166,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     // Hapus listener saat dispose untuk mencegah memory leak
-    themeNotifier.removeListener(_onThemeChanged); 
+    themeNotifier.removeListener(_onThemeChanged);
     super.dispose();
   }
 
@@ -186,10 +198,10 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     // Catat waktu theme change dan set flag
     _themeChanged = true;
     _lastThemeChange = DateTime.now();
-    
+
     // Reset pause time agar tidak salah deteksi sebagai "app pause lama"
     _pausedTime = null;
-    
+
     // Reset unlock time untuk mencegah re-lock
     _lastUnlockTime = DateTime.now();
   }
@@ -231,7 +243,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
         setState(() => _isLocked = true);
       }
     }
-    
+
     // Reset flag theme changed setelah handle
     _themeChanged = false;
   }
@@ -243,7 +255,7 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
         onUnlockSuccess: () {
           setState(() {
             _isLocked = false;
-            _lastUnlockTime = DateTime.now(); // Catat waktu unlock 
+            _lastUnlockTime = DateTime.now(); // Catat waktu unlock
             _pausedTime = null; // Reset pause time
           });
           _checkForUpdate();
@@ -264,5 +276,32 @@ class _AppLockWrapperState extends State<_AppLockWrapper>
     if (mounted) {
       RemoteConfigService().checkForUpdate(context);
     }
+  }
+}
+
+class _GuestUpdateWrapper extends StatefulWidget {
+  final Widget child;
+
+  const _GuestUpdateWrapper({required this.child});
+
+  @override
+  State<_GuestUpdateWrapper> createState() => _GuestUpdateWrapperState();
+}
+
+class _GuestUpdateWrapperState extends State<_GuestUpdateWrapper> {
+  bool _updateChecked = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_updateChecked) {
+      _updateChecked = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          RemoteConfigService().checkForUpdate(context);
+        }
+      });
+    }
+
+    return widget.child;
   }
 }

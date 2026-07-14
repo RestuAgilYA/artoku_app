@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -7,37 +6,12 @@ import 'package:intl/intl.dart';
 import 'package:artoku_app/features/goal/data/goal_model.dart';
 import 'package:artoku_app/features/goal/data/goal_service.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 
 // ============================================================
 // CREATE / EDIT GOAL SHEET
 // Jika `goal` diberikan, mode = Edit. Jika null, mode = Create.
 // ============================================================
-
-class ThousandsSeparatorFormatter extends TextInputFormatter {
-  static const separator = '.';
-
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    String newText = newValue.text.replaceAll(separator, '');
-    if (int.tryParse(newText) == null) {
-      return oldValue;
-    }
-
-    final formatter = NumberFormat('#,###');
-    String formatted =
-        formatter.format(int.parse(newText)).replaceAll(',', separator);
-
-    return newValue.copyWith(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
 
 class CreateGoalSheet extends StatefulWidget {
   final GoalModel? goal; // null = create, non-null = edit
@@ -53,6 +27,8 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
 
   late TextEditingController _titleController;
   late TextEditingController _amountController;
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
 
   String? _selectedWalletId;
   String? _selectedWalletName;
@@ -96,8 +72,10 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
 
   void _validateForm() {
     final title = _titleController.text.trim();
-    final amountText =
-        _amountController.text.replaceAll('.', '').replaceAll(',', '').trim();
+    final amountText = _amountController.text
+        .replaceAll('.', '')
+        .replaceAll(',', '')
+        .trim();
     final amount = double.tryParse(amountText) ?? 0;
 
     setState(() {
@@ -107,8 +85,10 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
   }
 
   double _parseAmount() {
-    final text =
-        _amountController.text.replaceAll('.', '').replaceAll(',', '').trim();
+    final text = _amountController.text
+        .replaceAll('.', '')
+        .replaceAll(',', '')
+        .trim();
     return double.tryParse(text) ?? 0;
   }
 
@@ -124,16 +104,16 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: (brightness == Brightness.dark
-                    ? ColorScheme.dark(
-                        primary: _primaryColor,
-                        onPrimary: Colors.white,
-                        surface: Theme.of(context).scaffoldBackgroundColor,
-                      )
-                    : ColorScheme.light(
-                        primary: _primaryColor,
-                        onPrimary: Colors.white,
-                        surface: Theme.of(context).scaffoldBackgroundColor,
-                      )),
+                ? ColorScheme.dark(
+                    primary: _primaryColor,
+                    onPrimary: Colors.white,
+                    surface: Theme.of(context).scaffoldBackgroundColor,
+                  )
+                : ColorScheme.light(
+                    primary: _primaryColor,
+                    onPrimary: Colors.white,
+                    surface: Theme.of(context).scaffoldBackgroundColor,
+                  )),
           ),
           child: child!,
         );
@@ -276,10 +256,7 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                ThousandsSeparatorFormatter(),
-              ],
+              inputFormatters: [_currencyFormatter],
               decoration: InputDecoration(
                 hintText: "0",
                 prefixText: "Rp ",
@@ -460,10 +437,9 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
                             style: TextStyle(
                               color: isSelected
                                   ? Colors.white
-                                  : Theme.of(context)
-                                      .textTheme
-                                      .bodyLarge
-                                      ?.color,
+                                  : Theme.of(
+                                      context,
+                                    ).textTheme.bodyLarge?.color,
                               fontWeight: FontWeight.bold,
                               fontSize: 13,
                             ),
@@ -492,8 +468,18 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
 
   Widget _buildDeadlinePicker() {
     List<String> months = [
-      "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-      "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
     ];
 
     return GestureDetector(
@@ -532,11 +518,7 @@ class _CreateGoalSheetState extends State<CreateGoalSheet> {
                 onTap: () {
                   setState(() => _selectedDeadline = null);
                 },
-                child: Icon(
-                  Icons.close,
-                  color: Colors.grey.shade500,
-                  size: 20,
-                ),
+                child: Icon(Icons.close, color: Colors.grey.shade500, size: 20),
               ),
           ],
         ),

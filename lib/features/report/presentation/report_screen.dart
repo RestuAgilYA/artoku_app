@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:artoku_app/features/report/data/pdf_helper.dart';
 import 'package:artoku_app/features/report/data/csv_helper.dart';
+import 'package:artoku_app/core/services/ui_helper.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -16,8 +17,34 @@ class _ReportScreenState extends State<ReportScreen> {
   final Color primaryColor = const Color(0xFF0F4C5C);
   final User? user = FirebaseAuth.instance.currentUser;
 
-  bool _isExpense = true;
+  int _selectedTab = 0; // 0 = Pengeluaran, 1 = Pemasukan
+  late PageController _pageController;
+  late Stream<QuerySnapshot> _expenseStream;
+  late Stream<QuerySnapshot> _incomeStream;
   DateTime _selectedMonth = DateTime.now();
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _selectedTab);
+    if (user != null) {
+      _expenseStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transactions')
+          .where('type', isEqualTo: 'expense')
+          .snapshots();
+      _incomeStream = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('transactions')
+          .where('type', isEqualTo: 'income')
+          .snapshots();
+    } else {
+      _expenseStream = const Stream.empty();
+      _incomeStream = const Stream.empty();
+    }
+  }
   bool _isExporting = false;
   bool _isExportingCsv = false;
 
@@ -26,13 +53,18 @@ class _ReportScreenState extends State<ReportScreen> {
 
   Future<void> _pickDateRangeAndExport({required bool isPdf}) async {
     final now = DateTime.now();
+    var startOfMonth = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+    var endOfMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
+    if (endOfMonth.isAfter(now)) endOfMonth = now;
+    if (startOfMonth.isAfter(now)) startOfMonth = now; // Guard just in case
+
     final picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
-      lastDate: DateTime(now.year + 1, 12, 31),
+      lastDate: now, // Dibatasi hingga hari ini (nowday)
       initialDateRange: _exportDateRange ?? DateTimeRange(
-        start: DateTime(_selectedMonth.year, _selectedMonth.month, 1),
-        end: DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0),
+        start: startOfMonth,
+        end: endOfMonth,
       ),
       builder: (context, child) {
         return Theme(
@@ -77,19 +109,34 @@ class _ReportScreenState extends State<ReportScreen> {
           .doc(user!.uid)
           .collection('debts')
           .get();
+      final goalFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('goals')
+          .get();
+      final patunganFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('patungans')
+          .get();
 
       final results =
-          await Future.wait([transactionFuture, transferFuture, debtFuture]);
+          await Future.wait([transactionFuture, transferFuture, debtFuture, goalFuture, patunganFuture]);
       final transactionSnapshot = results[0] as QuerySnapshot;
       final transferSnapshot = results[1] as QuerySnapshot;
       final debtSnapshot = results[2] as QuerySnapshot;
+      final goalSnapshot = results[3] as QuerySnapshot;
+      final patunganSnapshot = results[4] as QuerySnapshot;
 
       if (!mounted) return;
 
       // 2. Check if there is any data at all
-      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty && debtSnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
+      if (transactionSnapshot.docs.isEmpty && 
+          transferSnapshot.docs.isEmpty && 
+          debtSnapshot.docs.isEmpty && 
+          goalSnapshot.docs.isEmpty && 
+          patunganSnapshot.docs.isEmpty) {
+        UIHelper.showInfo(context, "Info", "Tidak ada data untuk diekspor pada periode ini.");
         setState(() => _isExporting = false);
         return;
       }
@@ -100,11 +147,12 @@ class _ReportScreenState extends State<ReportScreen> {
         transactionSnapshot.docs,
         transferSnapshot.docs,
         debtDocs: debtSnapshot.docs,
+        goalDocs: goalSnapshot.docs,
+        patunganDocs: patunganSnapshot.docs,
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Gagal mengekspor PDF: $e")));
+        UIHelper.showError(context, "Gagal mengekspor PDF: $e");
       }
     } finally {
       if (mounted) {
@@ -134,18 +182,33 @@ class _ReportScreenState extends State<ReportScreen> {
           .doc(user!.uid)
           .collection('debts')
           .get();
+      final goalFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('goals')
+          .get();
+      final patunganFuture = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .collection('patungans')
+          .get();
 
-      final results = await Future.wait([transactionFuture, transferFuture, debtFuture]);
+      final results = await Future.wait([transactionFuture, transferFuture, debtFuture, goalFuture, patunganFuture]);
       final transactionSnapshot = results[0] as QuerySnapshot;
       final transferSnapshot = results[1] as QuerySnapshot;
       final debtSnapshot = results[2] as QuerySnapshot;
+      final goalSnapshot = results[3] as QuerySnapshot;
+      final patunganSnapshot = results[4] as QuerySnapshot;
 
       if (!mounted) return;
 
       // 2. Check if there is any data at all
-      if (transactionSnapshot.docs.isEmpty && transferSnapshot.docs.isEmpty && debtSnapshot.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Tidak ada data untuk diekspor.")));
+      if (transactionSnapshot.docs.isEmpty && 
+          transferSnapshot.docs.isEmpty && 
+          debtSnapshot.docs.isEmpty && 
+          goalSnapshot.docs.isEmpty && 
+          patunganSnapshot.docs.isEmpty) {
+        UIHelper.showInfo(context, "Info", "Tidak ada data untuk diekspor pada periode ini.");
         setState(() => _isExportingCsv = false);
         return;
       }
@@ -156,11 +219,12 @@ class _ReportScreenState extends State<ReportScreen> {
         transactionSnapshot.docs,
         transferSnapshot.docs,
         debtDocs: debtSnapshot.docs,
+        goalDocs: goalSnapshot.docs,
+        patunganDocs: patunganSnapshot.docs,
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text("Gagal mengekspor CSV: $e")));
+        UIHelper.showError(context, "Gagal mengekspor CSV: $e");
       }
     } finally {
       if (mounted) {
@@ -216,210 +280,19 @@ class _ReportScreenState extends State<ReportScreen> {
           const SizedBox(height: 20),
 
           Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(user?.uid)
-                  .collection('transactions')
-                  .where('type', isEqualTo: _isExpense ? 'expense' : 'income')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return _buildEmptyState("Belum ada data.");
-                }
-
-                // --- LOGIKA BAR CHART ---
-                List<double> dailyTotals = List.filled(31, 0.0);
-                double totalMonth = 0;
-                double maxAmount = 0;
-
-                for (var doc in snapshot.data!.docs) {
-                  var data = doc.data() as Map<String, dynamic>;
-                  Timestamp? t = data['date'];
-                  if (t == null) continue;
-
-                  DateTime date = t.toDate();
-
-                  if (date.year == _selectedMonth.year &&
-                      date.month == _selectedMonth.month) {
-                    double amount = (data['amount'] ?? 0).toDouble();
-                    int dayIndex = date.day - 1;
-                    dailyTotals[dayIndex] += amount;
-                    totalMonth += amount;
-                  }
-                }
-
-                for (var val in dailyTotals) {
-                  if (val > maxAmount) maxAmount = val;
-                }
-                if (maxAmount == 0) maxAmount = 100;
-                maxAmount = maxAmount * 1.2;
-
-                if (totalMonth == 0) {
-                  return _buildEmptyState("Tidak ada transaksi bulan ini.");
-                }
-
-                return SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      Text(
-                        "Total ${_isExpense ? 'Pengeluaran' : 'Pemasukan'}",
-                        style: TextStyle(color: Colors.grey.shade500),
-                      ),
-                      Text(
-                        _formatFullRupiah(totalMonth),
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: _isExpense ? Colors.redAccent : Colors.green,
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Container(
-                        height: 300,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: BarChart(
-                          BarChartData(
-                            alignment: BarChartAlignment.spaceAround,
-                            maxY: maxAmount,
-                            barTouchData: BarTouchData(
-                              touchTooltipData: BarTouchTooltipData(
-                                getTooltipColor: (group) => Colors.blueGrey,
-                                getTooltipItem:
-                                    (group, groupIndex, rod, rodIndex) {
-                                      return BarTooltipItem(
-                                        "Tgl ${group.x + 1}\n",
-                                        const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        children: <TextSpan>[
-                                          TextSpan(
-                                            text: _formatCompactCurrency(
-                                              rod.toY,
-                                            ),
-                                            style: TextStyle(
-                                              color:
-                                                  Colors.yellowAccent.shade100,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ],
-                                      );
-                                    },
-                              ),
-                            ),
-                            titlesData: FlTitlesData(
-                              show: true,
-                              topTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              rightTitles: AxisTitles(
-                                sideTitles: SideTitles(showTitles: false),
-                              ),
-                              leftTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  reservedSize: 40,
-                                  getTitlesWidget: (value, meta) {
-                                    if (value == 0) {
-                                      return const SizedBox.shrink();
-                                    }
-                                    return Text(
-                                      _formatCompactCurrency(value),
-                                      style: TextStyle(
-                                        color: Colors.grey.shade400,
-                                        fontSize: 10,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                              bottomTitles: AxisTitles(
-                                sideTitles: SideTitles(
-                                  showTitles: true,
-                                  getTitlesWidget:
-                                      (double value, TitleMeta meta) {
-                                        int day = value.toInt() + 1;
-                                        if (day == 1 || day % 5 == 0) {
-                                          return Padding(
-                                            padding: const EdgeInsets.only(
-                                              top: 8.0,
-                                            ),
-                                            child: Text(
-                                              day.toString(),
-                                              style: TextStyle(
-                                                color: Colors.grey.shade600,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                        return const SizedBox.shrink();
-                                      },
-                                ),
-                              ),
-                            ),
-                            borderData: FlBorderData(show: false),
-                            gridData: FlGridData(
-                              show: true,
-                              drawVerticalLine: false,
-                              getDrawingHorizontalLine: (value) => FlLine(
-                                // ignore: deprecated_member_use
-                                color: Colors.grey.withOpacity(0.1),
-                                strokeWidth: 1,
-                              ),
-                            ),
-                            barGroups: List.generate(31, (index) {
-                              return BarChartGroupData(
-                                x: index,
-                                barRods: [
-                                  BarChartRodData(
-                                    toY: dailyTotals[index],
-                                    color: _isExpense
-                                        ? primaryColor
-                                        : Colors.teal,
-                                    width: 6,
-                                    borderRadius: BorderRadius.circular(2),
-                                    backDrawRodData: BackgroundBarChartRodData(
-                                      show: true,
-                                      toY: maxAmount,
-                                      color: isDark
-                                          ? Colors.white10
-                                          : Colors.grey.shade100,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            }),
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 20),
-
-                      Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Text(
-                          "Grafik di atas menampilkan tren ${_isExpense ? 'pengeluaran' : 'pemasukan'} Anda per hari dalam bulan ini.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey.shade500,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (index) {
+                setState(() => _selectedTab = index);
               },
+              children: [
+                KeepAliveWrapper(
+                  child: _buildChartTab(_expenseStream, true, isDark, primaryColor),
+                ),
+                KeepAliveWrapper(
+                  child: _buildChartTab(_incomeStream, false, isDark, primaryColor),
+                ),
+              ],
             ),
           ),
         ],
@@ -591,33 +464,63 @@ class _ReportScreenState extends State<ReportScreen> {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          _toggleButton("Pengeluaran", _isExpense),
-          _toggleButton("Pemasukan", !_isExpense),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final double tabWidth = constraints.maxWidth / 2;
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                left: _selectedTab * tabWidth,
+                top: 0,
+                bottom: 0,
+                width: tabWidth,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: primaryColor,
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  _toggleButton("Pengeluaran", 0),
+                  _toggleButton("Pemasukan", 1),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _toggleButton(String title, bool isActive) {
+  Widget _toggleButton(String title, int tabIndex) {
+    bool isActive = _selectedTab == tabIndex;
     return Expanded(
       child: GestureDetector(
-        onTap: () => setState(() => _isExpense = title == "Pengeluaran"),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          _pageController.animateToPage(
+            tabIndex,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
+        },
+        child: Container(
           padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: isActive ? primaryColor : Colors.transparent,
-            borderRadius: BorderRadius.circular(25),
-          ),
           alignment: Alignment.center,
-          child: Text(
-            title,
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
             style: TextStyle(
               color: isActive ? Colors.white : Colors.grey,
               fontWeight: FontWeight.bold,
+              fontSize: 12,
+              fontFamily: 'Inter',
             ),
+            child: Text(title),
           ),
         ),
       ),
@@ -639,5 +542,188 @@ class _ReportScreenState extends State<ReportScreen> {
         ],
       ),
     );
+  }
+
+  Widget _buildChartTab(Stream<QuerySnapshot> stream, bool isExpense, bool isDark, Color primaryColor) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("Belum ada data.");
+        }
+        List<double> dailyTotals = List.filled(31, 0.0);
+        double totalMonth = 0;
+        double maxAmount = 0;
+        for (var doc in snapshot.data!.docs) {
+          var data = doc.data() as Map<String, dynamic>;
+          Timestamp? t = data['date'];
+          if (t == null) continue;
+          DateTime date = t.toDate();
+          if (date.year == _selectedMonth.year && date.month == _selectedMonth.month) {
+            double amount = (data['amount'] ?? 0).toDouble();
+            int dayIndex = date.day - 1;
+            dailyTotals[dayIndex] += amount;
+            totalMonth += amount;
+          }
+        }
+        for (var val in dailyTotals) {
+          if (val > maxAmount) maxAmount = val;
+        }
+        if (maxAmount == 0) maxAmount = 100;
+        maxAmount = maxAmount * 1.2;
+        if (totalMonth == 0) {
+          return _buildEmptyState("Tidak ada transaksi bulan ini.");
+        }
+        return SingleChildScrollView(
+          child: Column(
+            children: [
+              Text(
+                "Total ${isExpense ? 'Pengeluaran' : 'Pemasukan'}",
+                style: TextStyle(color: Colors.grey.shade500),
+              ),
+              Text(
+                _formatFullRupiah(totalMonth),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: isExpense ? Colors.redAccent : Colors.green,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                height: 300,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 1000),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, animValue, child) {
+                    return BarChart(
+                      BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: maxAmount,
+                    barTouchData: BarTouchData(
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipColor: (group) => Colors.blueGrey,
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          return BarTooltipItem(
+                            "Tgl ${group.x + 1}\n",
+                            const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            children: <TextSpan>[
+                              TextSpan(
+                                text: _formatCompactCurrency(rod.toY),
+                                style: TextStyle(color: Colors.yellowAccent.shade100, fontSize: 12),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 40,
+                          getTitlesWidget: (value, meta) {
+                            if (value == 0) return const SizedBox.shrink();
+                            return Text(
+                              _formatCompactCurrency(value),
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 10),
+                            );
+                          },
+                        ),
+                      ),
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (double value, TitleMeta meta) {
+                            int day = value.toInt() + 1;
+                            if (day == 1 || day % 5 == 0) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 8.0),
+                                child: Text(
+                                  day.toString(),
+                                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (value) => FlLine(
+                        // ignore: deprecated_member_use
+                        color: Colors.grey.withOpacity(0.1),
+                        strokeWidth: 1,
+                      ),
+                    ),
+                    barGroups: List.generate(31, (index) {
+                      return BarChartGroupData(
+                        x: index,
+                        barRods: [
+                          BarChartRodData(
+                            toY: dailyTotals[index] * animValue,
+                            color: isExpense ? primaryColor : Colors.teal,
+                            width: 6,
+                            borderRadius: BorderRadius.circular(2),
+                            backDrawRodData: BackgroundBarChartRodData(
+                              show: true,
+                              toY: maxAmount,
+                              color: isDark ? Colors.white10 : Colors.grey.shade100,
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Text(
+                  "Grafik di atas menampilkan tren ${isExpense ? 'pengeluaran' : 'pemasukan'} Anda per hari dalam bulan ini.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class KeepAliveWrapper extends StatefulWidget {
+  final Widget child;
+  const KeepAliveWrapper({super.key, required this.child});
+
+  @override
+  State<KeepAliveWrapper> createState() => _KeepAliveWrapperState();
+}
+
+class _KeepAliveWrapperState extends State<KeepAliveWrapper>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

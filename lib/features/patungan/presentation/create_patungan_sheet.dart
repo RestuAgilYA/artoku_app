@@ -1,37 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:artoku_app/features/patungan/data/patungan_service.dart';
 import 'package:artoku_app/core/services/ui_helper.dart';
+import 'package:artoku_app/core/utils/currency_input_formatter.dart';
 
 // ============================================================
 // CREATE PATUNGAN SHEET
-
-class _ThousandsFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    if (newValue.text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    String newText = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
-    if (newText.isEmpty) return const TextEditingValue();
-
-    final number = int.parse(newText);
-    final formatter = NumberFormat('#,###', 'id_ID');
-    String formattedText = formatter.format(number);
-
-    return TextEditingValue(
-      text: formattedText,
-      selection: TextSelection.collapsed(offset: formattedText.length),
-    );
-  }
-}
 
 class CreatePatunganSheet extends StatefulWidget {
   const CreatePatunganSheet({super.key});
@@ -45,6 +21,8 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
 
   final _titleController = TextEditingController();
   final _totalAmountController = TextEditingController();
+  final CurrencyTextInputFormatter _currencyFormatter =
+      const CurrencyTextInputFormatter();
 
   String? _selectedWalletId;
   String? _selectedWalletName;
@@ -73,16 +51,20 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
     _creatorName = _getUserDisplayName(user);
 
     // Creator sebagai peserta pertama
-    _participants.add(_ParticipantEntry(
-      nameController: TextEditingController(text: _creatorName),
-      amountController: TextEditingController(),
-      isCreator: true,
-    ));
+    _participants.add(
+      _ParticipantEntry(
+        nameController: TextEditingController(text: _creatorName),
+        amountController: TextEditingController(),
+        isCreator: true,
+      ),
+    );
     // Satu peserta kosong
-    _participants.add(_ParticipantEntry(
-      nameController: TextEditingController(),
-      amountController: TextEditingController(),
-    ));
+    _participants.add(
+      _ParticipantEntry(
+        nameController: TextEditingController(),
+        amountController: TextEditingController(),
+      ),
+    );
 
     _titleController.addListener(_onFormChanged);
     _totalAmountController.addListener(_onAmountChanged);
@@ -161,10 +143,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Hapus',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -180,13 +159,9 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
         }
       });
       if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set(
-              {'expense_categories': _expenseCategories},
-              SetOptions(merge: true),
-            );
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'expense_categories': _expenseCategories,
+        }, SetOptions(merge: true));
       }
     });
   }
@@ -211,9 +186,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _primaryColor,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: _primaryColor),
             onPressed: () async {
               final newCat = catController.text.trim();
               if (newCat.isEmpty) return;
@@ -226,18 +199,14 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(user.uid)
-                    .set(
-                      {'expense_categories': _expenseCategories},
-                      SetOptions(merge: true),
-                    );
+                    .set({
+                      'expense_categories': _expenseCategories,
+                    }, SetOptions(merge: true));
               }
               // ignore: use_build_context_synchronously
               if (mounted) Navigator.pop(ctx);
             },
-            child: const Text(
-              'Simpan',
-              style: TextStyle(color: Colors.white),
-            ),
+            child: const Text('Simpan', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -254,9 +223,11 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
     if (_selectedWalletId == null) return false;
     for (final p in _participants) {
       if (p.nameController.text.trim().isEmpty) return false;
-      final amt = double.tryParse(
+      final amt =
+          double.tryParse(
             p.amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
-          ) ?? 0;
+          ) ??
+          0;
       if (amt <= 0) return false;
     }
     final sumShares = _getSumOfShares();
@@ -300,7 +271,8 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
   double _getSumOfShares() {
     double sum = 0;
     for (final p in _participants) {
-      sum += double.tryParse(
+      sum +=
+          double.tryParse(
             p.amountController.text.replaceAll(RegExp(r'[^0-9]'), ''),
           ) ??
           0;
@@ -325,8 +297,9 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
         // Sisa pembulatan diberikan ke peserta pertama
         if (i == 0) amount += remainder;
         final formatter = NumberFormat('#,###', 'id_ID');
-        _participants[i].amountController.text =
-            formatter.format(amount.toInt());
+        _participants[i].amountController.text = formatter.format(
+          amount.toInt(),
+        );
       }
     });
   }
@@ -369,11 +342,12 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
         );
         return;
       }
-      final amount = double.tryParse(
-            _participants[i]
-                .amountController
-                .text
-                .replaceAll(RegExp(r'[^0-9]'), ''),
+      final amount =
+          double.tryParse(
+            _participants[i].amountController.text.replaceAll(
+              RegExp(r'[^0-9]'),
+              '',
+            ),
           ) ??
           0;
       if (amount <= 0) {
@@ -449,8 +423,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
     final Color sheetBgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final Color textColor = isDark ? Colors.white : Colors.black;
     final Color hintColor = isDark ? Colors.grey : Colors.grey.shade400;
-    final Color chipBg =
-        isDark ? Colors.grey.shade800 : Colors.grey.shade100;
+    final Color chipBg = isDark ? Colors.grey.shade800 : Colors.grey.shade100;
     final Color chipText = isDark ? Colors.white70 : Colors.black87;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
@@ -573,8 +546,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
                       ActionChip(
                         label: const Icon(Icons.add, size: 16),
                         backgroundColor: chipBg,
-                        labelPadding:
-                            const EdgeInsets.symmetric(horizontal: 4),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 4),
                         onPressed: _showAddCategoryDialog,
                       ),
                     ],
@@ -590,7 +562,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
                   TextField(
                     controller: _totalAmountController,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [_ThousandsFormatter()],
+                    inputFormatters: [_currencyFormatter],
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -694,8 +666,8 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
                             remaining.abs() < 0.01
                                 ? "Pembagian sudah pas! ✓"
                                 : remaining > 0
-                                    ? "Sisa belum dibagi:"
-                                    : "Kelebihan:",
+                                ? "Sisa belum dibagi:"
+                                : "Kelebihan:",
                             style: TextStyle(
                               color: remaining.abs() < 0.01
                                   ? Colors.green
@@ -708,8 +680,9 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
                             Text(
                               UIHelper.formatRupiah(remaining.abs()),
                               style: TextStyle(
-                                color:
-                                    remaining > 0 ? Colors.orange : Colors.red,
+                                color: remaining > 0
+                                    ? Colors.orange
+                                    : Colors.red,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -798,8 +771,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
               setState(() {
                 _selectedWalletId = wallets.first.id;
                 _selectedWalletName = data['name'] as String?;
-                _selectedWalletBalance =
-                    (data['balance'] ?? 0).toDouble();
+                _selectedWalletBalance = (data['balance'] ?? 0).toDouble();
               });
             }
           });
@@ -816,8 +788,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
                 onTap: () => setState(() {
                   _selectedWalletId = doc.id;
                   _selectedWalletName = data['name'] as String?;
-                  _selectedWalletBalance =
-                      (data['balance'] ?? 0).toDouble();
+                  _selectedWalletBalance = (data['balance'] ?? 0).toDouble();
                 }),
                 child: Container(
                   margin: const EdgeInsets.only(right: 10),
@@ -953,7 +924,7 @@ class _CreatePatunganSheetState extends State<CreatePatunganSheet> {
             child: TextField(
               controller: p.amountController,
               keyboardType: TextInputType.number,
-              inputFormatters: [_ThousandsFormatter()],
+              inputFormatters: [_currencyFormatter],
               onChanged: (_) => setState(() {}),
               style: TextStyle(color: textColor, fontSize: 14),
               decoration: InputDecoration(

@@ -291,11 +291,18 @@ class DetailPatunganScreen extends StatelessWidget {
           const SizedBox(height: 10),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey.shade200,
-              color: isSettled ? Colors.green : primaryColor,
-              minHeight: 8,
+            child: TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 0, end: progress),
+              duration: const Duration(milliseconds: 1000),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, _) {
+                return LinearProgressIndicator(
+                  value: value,
+                  backgroundColor: Colors.grey.shade200,
+                  color: isSettled ? Colors.green : primaryColor,
+                  minHeight: 8,
+                );
+              },
             ),
           ),
           const SizedBox(height: 12),

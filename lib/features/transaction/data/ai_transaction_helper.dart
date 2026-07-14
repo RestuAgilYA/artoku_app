@@ -32,22 +32,30 @@ class AiTransactionHelper {
     BuildContext context,
     String text,
   ) async {
+    bool isLoadingShown = false;
+
     // Tampilkan Loading di Context Dashboard
     UIHelper.showLoading(context);
+    isLoadingShown = true;
 
     // Hit Gemini
-    final result = await GeminiService.analyzeText(text);
+    final aiResult = await GeminiService.analyzeText(text);
 
     // Tutup Loading (Pastikan context masih ada)
-    if (context.mounted) Navigator.pop(context);
+    if (isLoadingShown && context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+      isLoadingShown = false;
+    }
 
-    if (result != null && context.mounted) {
+    if (aiResult.data != null && context.mounted) {
       // Buka Sheet Transaksi
-      _openTransactionSheet(context, result);
+      _openTransactionSheet(context, aiResult.data);
     } else if (context.mounted) {
-      UIHelper.showError(
+      await _handleAiFailure(
         context,
-        "Gagal menganalisa. Coba ulangi dengan kalimat lebih jelas.",
+        errorType: aiResult.errorType,
+        isImageFlow: false,
+        onRetry: () => _processTextToGemini(context, text),
       );
     }
   }
@@ -58,33 +66,132 @@ class AiTransactionHelper {
     ImageSource source,
   ) async {
     final ImagePicker picker = ImagePicker();
+    bool isLoadingShown = false;
+
     try {
       final XFile? image = await picker.pickImage(
         source: source,
         imageQuality: 50,
       );
 
-      if (image != null && context.mounted) {
-        UIHelper.showLoading(context);
-
-        final result = await GeminiService.scanReceipt(File(image.path));
-
-        if (context.mounted) Navigator.pop(context);
-
-        if (result != null && context.mounted) {
-          _openTransactionSheet(context, result);
-        } else if (context.mounted) {
-          UIHelper.showError(context, "Gagal menganalisa gambar.");
-        }
+      if (image == null) {
+        return;
       }
-    } catch (e) {
-      LoggerService.error("Error Pick Image", e);
+
+      if (!context.mounted) return;
+
+      UIHelper.showLoading(context);
+      isLoadingShown = true;
+
+      final aiResult = await GeminiService.scanReceipt(File(image.path));
+
+      if (isLoadingShown && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        isLoadingShown = false;
+      }
+
+      if (aiResult.data != null && context.mounted) {
+        _openTransactionSheet(context, aiResult.data);
+      } else if (context.mounted) {
+        await _handleAiFailure(
+          context,
+          errorType: aiResult.errorType,
+          isImageFlow: true,
+          onRetry: () => pickAndScanImage(context, source),
+        );
+      }
+    } catch (e, stack) {
+      if (isLoadingShown && context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+      }
+      LoggerService.error("Error Pick/Scan Image", e, stack);
+      if (context.mounted) {
+        UIHelper.showError(
+          context,
+          "Terjadi kendala saat membuka kamera/galeri. Periksa izin aplikasi lalu coba lagi.",
+        );
+      }
+    }
+  }
+
+  static String _buildAiErrorMessage(
+    AiServiceErrorType? errorType, {
+    required bool isImageFlow,
+  }) {
+    switch (errorType) {
+      case AiServiceErrorType.missingApiKey:
+        return "API Key AI belum dikonfigurasi. Cek file .env (GEMINI_API_KEY).";
+      case AiServiceErrorType.rateLimited:
+        return "Layanan AI sedang mencapai batas permintaan. Coba lagi beberapa saat.";
+      case AiServiceErrorType.quotaExceeded:
+        return "Kuota penggunaan AI sudah habis. Silakan cek kuota/billing lalu coba lagi.";
+      case AiServiceErrorType.invalidApiKey:
+        return "API Key AI tidak valid atau tidak punya izin. Periksa GEMINI_API_KEY Anda.";
+      case AiServiceErrorType.network:
+        return "Koneksi internet bermasalah saat menghubungi AI. Coba lagi.";
+      case AiServiceErrorType.invalidAiResponse:
+        return isImageFlow
+            ? "AI belum bisa membaca struk ini. Coba foto lebih terang dan tidak blur."
+            : "AI belum bisa memahami input. Coba kalimat yang lebih jelas.";
+      case AiServiceErrorType.unknown:
+      case null:
+        return isImageFlow
+            ? "Terjadi kendala saat menganalisa gambar struk."
+            : "Terjadi kendala saat menganalisa input.";
+    }
+  }
+
+  static Future<void> _handleAiFailure(
+    BuildContext context, {
+    required AiServiceErrorType? errorType,
+    required bool isImageFlow,
+    required Future<void> Function()? onRetry,
+  }) async {
+    final message = _buildAiErrorMessage(errorType, isImageFlow: isImageFlow);
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text("Analisa AI Gagal"),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'close'),
+              child: const Text("Tutup"),
+            ),
+            if (onRetry != null)
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, 'retry'),
+                child: const Text("Coba Lagi"),
+              ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, 'manual'),
+              child: const Text("Isi Manual"),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!context.mounted) return;
+
+    if (action == 'manual') {
+      _openTransactionSheet(context, null);
+      return;
+    }
+
+    if (action == 'retry' && onRetry != null) {
+      await onRetry();
     }
   }
 
   static void _openTransactionSheet(
     BuildContext context,
-    Map<String, dynamic> data,
+    Map<String, dynamic>? data,
   ) {
     showModalBottomSheet(
       context: context,
